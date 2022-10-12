@@ -71,10 +71,7 @@ void frame_cb() {
   
   // Render everything to the screen
   sg_begin_default_pass(&default_pass, sapp_width(), sapp_height());
-  for (Sloth_U32 i = 0; i < sloth.glyph_atlases_cap; i++)
-  {
-    sloth_render_sokol(&sloth, i);
-  }
+  sloth_frame_render(&sloth);
   sg_end_pass();
   sg_commit();
 }

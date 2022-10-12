@@ -1,16 +1,25 @@
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <math.h>
-
 // Leaving the interface here, and including the implementation at the end
 // to test doing the single file include trick
 #include "../src/sloth.h"
 #include "sloth_tests_utils.h"
 
+#include <stdlib.h>
+#include <math.h>
+
 #include "utest.h"
+
+Sloth_Function Sloth_U8*
+sloth_realloc_test_stub(Sloth_U8* base, Sloth_U32 old_size, Sloth_U32 new_size)
+{
+  if (new_size == 0) {
+    free(base);
+    return 0;
+  } else {
+    return (Sloth_U8*)realloc(base, new_size);
+  }
+}
+#define sloth_realloc(b, os, ns) sloth_realloc_test_stub((Sloth_U8*)(b),(Sloth_U32)(os),(Sloth_U32)(ns))
+#define sloth_free(b,s) free(b)
 
 static Sloth_U32 sloth_test_widget_order_count = 0;
 Sloth_Tree_Walk_Result
@@ -233,7 +242,7 @@ UTEST(math, gamma_correction)
   
   // gamma = 1, no change
   Sloth_U32 color_out0 = sloth_color_apply_gamma(color, 1);
-  sloth_assert(color_out0 == color);
+  EXPECT_EQ(color_out0, color);
   
   // gamma = 2.2, verify changes
   Sloth_U32 color_out1 = sloth_color_apply_gamma(color, 2.2f);

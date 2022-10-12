@@ -206,7 +206,19 @@ int main(int argc, char** args)
 #define Sloth_R32_Min -3.402823466e+38f
 
 #ifndef Sloth_Bool
-#  define Sloth_Bool bool
+#  ifdef SLOTH_USE_STD_BOOL
+#    include <stdbool.h>
+#    define Sloth_Bool bool
+#  else
+#    define Sloth_Bool unsigned char
+#    if !defined(true) && !defined(false)
+#      define true 1
+#      define false 0
+#    endif
+#    if !defined(true) || !defined(false)
+#      error "You must define both true and false or neither.
+#    endif
+#  endif // SLOTH_USE_STD_BOOL
 #endif
 
 #ifndef Sloth_Function
@@ -217,62 +229,12 @@ int main(int argc, char** args)
 #  define Sloth_Temp_String_Memory_Size 512
 #endif
 
-#ifndef sloth_realloc
-Sloth_Function Sloth_U8*
-sloth_realloc_wrapper(Sloth_U8* base, Sloth_U32 old_size, Sloth_U32 new_size)
-{
-  if (new_size == 0) {
-    free(base);
-    return 0;
-  } else {
-    return (Sloth_U8*)realloc(base, new_size);
-  }
-}
-#  define sloth_realloc(base, old_size, new_size) sloth_realloc_wrapper((Sloth_U8*)(base), (old_size), (new_size))
-#endif
-
-#define sloth_realloc_array(base, type, old_count, new_count) (type*)sloth_realloc((base), sizeof(type) * (old_count), sizeof(type) * (new_count))
-
-#ifndef sloth_free
-#  define sloth_free(base, size) free(base);
-#endif
-
-#ifndef sloth_assert
-#  ifdef DEBUG
-#    define sloth_assert(c) if (!(c)) { do{ *((volatile int*)0) = 0xFFFF; }while(0); }
-#  else
-#    define sloth_assert(c)
-#  endif
-#endif
-
-#define sloth_invalid_code_path sloth_assert(false)
-#ifdef DEBUG
-#  define sloth_invalid_default_case default: { sloth_invalid_code_path; } break;
-#else
-#  define sloth_invalid_default_case default: {} break;
-#endif
-
-// we prefer the stbsp implementation of vsnprintf if its present
-// otherwise fall back on the c standard libraries implementation
-#ifndef sloth_vsnprintf
-#  if defined(STB_SPRINTF_H_INCLUDE) && !defined(SLOTH_USE_STDLIB_VSNPRINTF)
-#    define sloth_vsnprintf(...) stbsp_vsnprintf(__VA_ARGS__)
-#  else
-#    define sloth_vsnprintf(...) vsnprintf(__VA_ARGS__)
-#  endif
-#endif
-
-Sloth_Function Sloth_U32
-sloth_snprintf(char* dst, Sloth_U32 dst_len, char* fmt, ...)
-{
-  va_list args; va_start(args, fmt);
-  Sloth_U32 result = (Sloth_U32)sloth_vsnprintf(dst, dst_len, fmt, args);
-  va_end(args);
-  return result;
-}
-
 #ifndef SLOTH_PROFILE_BEGIN
 #  define SLOTH_PROFILE_BEGIN
+#endif
+
+#ifndef SLOTH_FORCE_NO_STDARG
+#  include <stdarg.h>
 #endif
 
 //////// DATA TYPES  ////////
@@ -535,6 +497,7 @@ struct Sloth_Glyph_Info
 };
 
 typedef void Sloth_Renderer_Atlas_Updated(Sloth_Ctx* sloth, Sloth_U32 atlas_index);
+typedef void Sloth_Renderer_Render(Sloth_Ctx* sloth, Sloth_U32 glyph_atlas_index);
 
 typedef Sloth_U8 Sloth_Size_Kind;
 enum {
@@ -938,6 +901,7 @@ struct Sloth_Ctx
   Sloth_U8* render_data;
   Sloth_R32 z_depth_min;
   Sloth_R32 z_depth_max;
+  Sloth_Renderer_Render* renderer_render;
   
   // Input Tracking
   Sloth_V2 screen_dim;
@@ -991,7 +955,7 @@ Sloth_Function void       sloth_rect_expand(Sloth_Rect* target, Sloth_R32 left, 
 Sloth_Function Sloth_V2   sloth_rect_dim(Sloth_Rect r);
 Sloth_Function Sloth_Bool sloth_rect_contains(Sloth_Rect r, Sloth_V2 p);
 Sloth_Function Sloth_V2   sloth_rect_get_closest_point(Sloth_Rect r, Sloth_V2 p);
-Sloth_Function bool       sloth_clip_rect_and_uv(Sloth_Rect clip, Sloth_Rect bounds, Sloth_Rect uv, Sloth_Rect* bounds_clipped, Sloth_Rect* uv_clipped);
+Sloth_Function Sloth_Bool sloth_clip_rect_and_uv(Sloth_Rect clip, Sloth_Rect bounds, Sloth_Rect uv, Sloth_Rect* bounds_clipped, Sloth_Rect* uv_clipped);
 
 Sloth_Function Sloth_Size_Box sloth_size_box_uniform(Sloth_Size_Kind k, Sloth_R32 v);
 Sloth_Function Sloth_Size_Box sloth_size_box_uniform_pixels(Sloth_R32 v);
@@ -1031,13 +995,13 @@ Sloth_Function void           sloth_font_set_metrics(Sloth_Ctx* sloth, Sloth_Fon
 
 // Glyph IDs
 Sloth_Function Sloth_Glyph_ID sloth_make_glyph_id(Sloth_U32 family, Sloth_U32 id);
-Sloth_Function bool           sloth_glyph_id_matches_charcode(Sloth_Glyph_ID id, Sloth_U32 charcode);
+Sloth_Function Sloth_Bool           sloth_glyph_id_matches_charcode(Sloth_Glyph_ID id, Sloth_U32 charcode);
 
 // Glyph Atlas
 Sloth_Function void sloth_glyph_atlas_resize(Sloth_Glyph_Atlas* atlas, Sloth_U32 new_dim);
 Sloth_Function Sloth_Glyph_Atlas* sloth_create_atlas(Sloth_Ctx* sloth, Sloth_U8 family, Sloth_U32 min_dim);
 // Glyph Store
-Sloth_Function bool sloth_glyph_store_contains(Sloth_Glyph_Store* store, Sloth_Glyph_ID id);
+Sloth_Function Sloth_Bool sloth_glyph_store_contains(Sloth_Glyph_Store* store, Sloth_Glyph_ID id);
 Sloth_Function void sloth_glyph_store_free(Sloth_Glyph_Store* store);
 
 // Glyph Registration
@@ -1051,10 +1015,10 @@ Sloth_Function Sloth_Glyph_Info   sloth_lookup_glyph(Sloth_Ctx* sloth, Sloth_Gly
 // Input
 //////////////////////////////////////////////
 
-Sloth_Function bool sloth_mouse_button_transitioned_down(Sloth_Mouse_State btn);
-Sloth_Function bool sloth_mouse_button_transitioned_up  (Sloth_Mouse_State btn);
-Sloth_Function bool sloth_mouse_button_held_down (Sloth_Mouse_State btn);
-Sloth_Function bool sloth_mouse_button_held_up   (Sloth_Mouse_State btn);
+Sloth_Function Sloth_Bool sloth_mouse_button_transitioned_down(Sloth_Mouse_State btn);
+Sloth_Function Sloth_Bool sloth_mouse_button_transitioned_up  (Sloth_Mouse_State btn);
+Sloth_Function Sloth_Bool sloth_mouse_button_held_down (Sloth_Mouse_State btn);
+Sloth_Function Sloth_Bool sloth_mouse_button_held_up   (Sloth_Mouse_State btn);
 
 //
 // Widget Functions
@@ -1152,6 +1116,7 @@ Sloth_Function void sloth_ctx_activate_glyph_family(Sloth_Ctx* sloth, Sloth_U32 
 Sloth_Function void sloth_ctx_free(Sloth_Ctx* sloth);
 Sloth_Function void sloth_frame_prepare(Sloth_Ctx* sloth, Sloth_Frame_Desc desc);
 Sloth_Function void sloth_frame_advance(Sloth_Ctx* sloth);
+Sloth_Function void sloth_frame_render(Sloth_Ctx* sloth);
 
 // TODO
 // - Convenience functions
@@ -1162,6 +1127,64 @@ Sloth_Function void sloth_frame_advance(Sloth_Ctx* sloth);
 
 //////// IMPLEMENTATION  ////////
 #ifdef SLOTH_IMPLEMENTATION
+
+#ifndef sloth_realloc
+
+Sloth_Function Sloth_U8*
+sloth_realloc_wrapper(Sloth_U8* base, Sloth_U32 old_size, Sloth_U32 new_size)
+{
+  if (new_size == 0) {
+    free(base);
+    return 0;
+  } else {
+    return (Sloth_U8*)realloc(base, new_size);
+  }
+}
+#  define sloth_realloc(base, old_size, new_size) sloth_realloc_wrapper((Sloth_U8*)(base), (old_size), (new_size))
+
+#endif
+
+#define sloth_realloc_array(base, type, old_count, new_count) (type*)sloth_realloc((base), sizeof(type) * (old_count), sizeof(type) * (new_count))
+
+#ifndef sloth_free
+#  define sloth_free(base, size) free(base)
+#endif
+
+#ifndef sloth_assert
+#  ifdef DEBUG
+#    define sloth_assert(c) if (!(c)) { do{ *((volatile int*)0) = 0xFFFF; }while(0); }
+#  else
+#    define sloth_assert(c)
+#  endif
+#endif
+
+#define sloth_invalid_code_path sloth_assert(false)
+#ifdef DEBUG
+#  define sloth_invalid_default_case default: { sloth_invalid_code_path; } break;
+#else
+#  define sloth_invalid_default_case default: {} break;
+#endif
+
+// we prefer the stbsp implementation of vsnprintf if its present
+// otherwise fall back on the c standard libraries implementation
+#ifndef sloth_vsnprintf
+#  if defined(STB_SPRINTF_H_INCLUDE) && !defined(SLOTH_USE_STDLIB_VSNPRINTF)
+#    define sloth_vsnprintf(...) stbsp_vsnprintf(__VA_ARGS__)
+#  else
+#    include <stdio.h>
+#    define sloth_vsnprintf(...) vsnprintf(__VA_ARGS__)
+#  endif
+#endif
+
+Sloth_Function Sloth_U32
+sloth_snprintf(char* dst, Sloth_U32 dst_len, char* fmt, ...)
+{
+  va_list args; va_start(args, fmt);
+  Sloth_U32 result = (Sloth_U32)sloth_vsnprintf(dst, dst_len, fmt, args);
+  va_end(args);
+  return result;
+}
+
 
 #define sloth_array_grow(base, len, cap, min_cap, ele_type) (ele_type*)sloth_array_grow_((Sloth_U8*)(base), (len), (cap), (min_cap), sizeof(ele_type))
 Sloth_Function Sloth_U8*
@@ -1432,7 +1455,7 @@ sloth_rect_get_closest_point(Sloth_Rect r, Sloth_V2 p)
 
 // returns true if the resulting bounds have non-zero area
 // ie. if the rect would be visible if rendered
-Sloth_Function bool
+Sloth_Function Sloth_Bool
 sloth_clip_rect_and_uv(Sloth_Rect clip, Sloth_Rect bounds, Sloth_Rect uv, Sloth_Rect* bounds_clipped, Sloth_Rect* uv_clipped)
 {
   bounds_clipped->value_min = sloth_rect_get_closest_point(clip, bounds.value_min);
@@ -1498,8 +1521,7 @@ sloth_zero_size__(Sloth_U32 size, Sloth_U8* base)
 Sloth_Function void
 sloth_hashtable_realloc(Sloth_Hashtable* table, Sloth_U32 old_cap, Sloth_U32 new_cap)
 {
-  table->keys = sloth_realloc_array(
-      table->keys, Sloth_U32, old_cap, new_cap);
+  table->keys = sloth_realloc_array(table->keys, Sloth_U32, old_cap, new_cap);
   table->values = (Sloth_U8**)sloth_realloc_array(
       table->values, Sloth_U8*, old_cap, new_cap
   );
@@ -1590,7 +1612,7 @@ sloth_hashtable_add(Sloth_Hashtable* table, Sloth_U32 key, Sloth_U8* value)
 }
 
 Sloth_Function Sloth_U32
-sloth_hashtable_lookup_index_(Sloth_Hashtable* table, Sloth_U32 key, bool* is_empty)
+sloth_hashtable_lookup_index_(Sloth_Hashtable* table, Sloth_U32 key, Sloth_Bool* is_empty)
 {
   if (!table->keys) {
     if (is_empty) *is_empty = true;
@@ -1615,7 +1637,7 @@ sloth_hashtable_lookup_index_(Sloth_Hashtable* table, Sloth_U32 key, bool* is_em
 Sloth_Function Sloth_Bool 
 sloth_hashtable_rem(Sloth_Hashtable* table, Sloth_U32 key)
 {
-  bool unused = false;
+  Sloth_Bool unused = false;
   Sloth_U32 index = sloth_hashtable_lookup_index_(table, key, &unused);
   if (index == 0) return false;
   table->keys[index] = table->keys[index] | SLOTH_HASHTABLE_TOMBSTONE;
@@ -2226,7 +2248,7 @@ sloth_unregister_glyph(Sloth_Ctx* sloth, Sloth_Glyph_ID id)
   sloth_invalid_code_path;
 }
 
-Sloth_Function bool
+Sloth_Function Sloth_Bool
 sloth_glyph_store_contains(Sloth_Glyph_Store* store, Sloth_Glyph_ID id)
 {
   SLOTH_PROFILE_BEGIN;
@@ -2278,7 +2300,7 @@ sloth_make_glyph_id(Sloth_U32 family, Sloth_U32 id)
   return result;
 }
 
-Sloth_Function bool
+Sloth_Function Sloth_Bool
 sloth_glyph_id_matches_charcode(Sloth_Glyph_ID id, Sloth_U32 charcode)
 {
   SLOTH_PROFILE_BEGIN;
@@ -2288,41 +2310,41 @@ sloth_glyph_id_matches_charcode(Sloth_Glyph_ID id, Sloth_U32 charcode)
   return id_code == charcode;
 }
 
-Sloth_Function bool
+Sloth_Function Sloth_Bool
 sloth_mouse_button_is_down(Sloth_Mouse_State btn)
 {
   SLOTH_PROFILE_BEGIN;
   return (btn & Sloth_MouseState_IsDown);
 }
-Sloth_Function bool
+Sloth_Function Sloth_Bool
 sloth_mouse_button_was_down(Sloth_Mouse_State btn)
 {
   SLOTH_PROFILE_BEGIN;
   return (btn & Sloth_MouseState_WasDown);
 }
 
-Sloth_Function bool 
+Sloth_Function Sloth_Bool 
 sloth_mouse_button_transitioned_down(Sloth_Mouse_State btn)
 {
   SLOTH_PROFILE_BEGIN;
   return sloth_mouse_button_is_down(btn) && !sloth_mouse_button_was_down(btn);
 }
 
-Sloth_Function bool 
+Sloth_Function Sloth_Bool 
 sloth_mouse_button_transitioned_up (Sloth_Mouse_State btn)
 {
   SLOTH_PROFILE_BEGIN;
   return !sloth_mouse_button_is_down(btn) && sloth_mouse_button_was_down(btn);
 }
 
-Sloth_Function bool 
+Sloth_Function Sloth_Bool 
 sloth_mouse_button_held_down (Sloth_Mouse_State btn)
 {
   SLOTH_PROFILE_BEGIN;
   return sloth_mouse_button_is_down(btn) && sloth_mouse_button_was_down(btn);
 }
 
-Sloth_Function bool 
+Sloth_Function Sloth_Bool 
 sloth_mouse_button_held_up (Sloth_Mouse_State btn)
 {
   SLOTH_PROFILE_BEGIN;
@@ -2572,7 +2594,7 @@ sloth_pop_widget_off_tree(Sloth_Ctx* sloth)
     // parent_cur either must have a previous sibling, or
     // it's parent must think this is the first child
     // not both.
-    sloth_assert((bool)(parent_cur->sibling_prev != 0) != (bool)(parent_cur->parent->child_first == parent_cur));
+    sloth_assert((Sloth_Bool)(parent_cur->sibling_prev != 0) != (Sloth_Bool)(parent_cur->parent->child_first == parent_cur));
   }
   
   // if there's an expected next child, that means last
@@ -2890,7 +2912,7 @@ sloth_widget_text_to_glyphs_append(Sloth_Ctx* sloth, Sloth_Widget_Result widget_
     text_family = sloth->fonts[font.value].weights[font.weight_index].glyph_family;
   }
   
-  bool show_selected = sloth_has_flag(widget->input.flags, Sloth_WidgetInput_TextSelectable);
+  Sloth_Bool show_selected = sloth_has_flag(widget->input.flags, Sloth_WidgetInput_TextSelectable);
   show_selected &= sloth_ids_equal(sloth->last_active_widget, widget->id);
   
   sloth_assert(widget->text_len + text_len <= widget->text_cap);
@@ -2901,9 +2923,9 @@ sloth_widget_text_to_glyphs_append(Sloth_Ctx* sloth, Sloth_Widget_Result widget_
     Sloth_U32 char_code = (Sloth_U32)text[char_i];
     Sloth_Glyph_ID g = sloth_make_glyph_id(text_family, char_code);
     
-    bool after_first = glyph_i >= widget_result.selected_glyphs_first;
-    bool before_last = glyph_i < widget_result.selected_glyphs_one_past_last;
-    bool is_selected = (show_selected && after_first && before_last);
+    Sloth_Bool after_first = glyph_i >= widget_result.selected_glyphs_first;
+    Sloth_Bool before_last = glyph_i < widget_result.selected_glyphs_one_past_last;
+    Sloth_Bool is_selected = (show_selected && after_first && before_last);
     widget->text[glyph_i].selected = is_selected;
     widget->text[glyph_i].glyph_id = g;
     
@@ -3087,7 +3109,7 @@ sloth_size_fixup_cb_percent_parent(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth
       // this child relies on its parent for size, and the parent
       // relies on its children for size. This will be solved in 
       // the violation fixup step
-      bool unsolved_violation = parent->layout.size[axis].kind == Sloth_SizeKind_ChildrenSum;
+      Sloth_Bool unsolved_violation = parent->layout.size[axis].kind == Sloth_SizeKind_ChildrenSum;
       if (!unsolved_violation)
       {
         Sloth_R32 parent_margin = sloth_size_box_evaluate(parent, parent->layout.margin, axis);
@@ -3192,7 +3214,7 @@ sloth_size_fixup_cb_violations(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_U8*
     {
       Sloth_Widget* parent = widget->parent;
       Sloth_Widget_Layout pl = parent->layout;
-      bool unsolved_violation = pl.size[axis].kind == Sloth_SizeKind_ChildrenSum;
+      Sloth_Bool unsolved_violation = pl.size[axis].kind == Sloth_SizeKind_ChildrenSum;
       // TODO:
     } break;
     default: {} break; // do nothing
@@ -3574,7 +3596,7 @@ sloth_render_get_glyph_bounds(Sloth_Glyph_Info glyph, Sloth_V2 at, Sloth_V2* new
   return bounds;
 }
 
-Sloth_Function bool
+Sloth_Function Sloth_Bool
 sloth_render_clip_glyph_layout(Sloth_Ctx* sloth, Sloth_Glyph_Layout* glyph, Sloth_Rect text_bounds)
 {
   SLOTH_PROFILE_BEGIN;
@@ -3746,7 +3768,7 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
     
     Sloth_V2 next_at;
     Sloth_Rect glyph_bounds;
-    bool is_newline = sloth_glyph_id_matches_charcode(text_at->glyph_id, '\n');
+    Sloth_Bool is_newline = sloth_glyph_id_matches_charcode(text_at->glyph_id, '\n');
     if (!is_newline)
     {
       text_at->info = sloth_lookup_glyph(sloth, text_at->glyph_id);
@@ -3786,8 +3808,8 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
       Sloth_U32 line_break = glyph_i;
       for (Sloth_U32 lb_i = glyph_i; lb_i > last_line_break && lb_i < widget->text_len; lb_i--)
       {
-        bool is_space = sloth_glyph_id_matches_charcode(widget->text[lb_i].glyph_id, ' ');
-        bool is_newline = sloth_glyph_id_matches_charcode(widget->text[lb_i].glyph_id, '\n');
+        Sloth_Bool is_space = sloth_glyph_id_matches_charcode(widget->text[lb_i].glyph_id, ' ');
+        Sloth_Bool is_newline = sloth_glyph_id_matches_charcode(widget->text[lb_i].glyph_id, '\n');
         if (is_space || is_newline)
         {
           line_break = lb_i + 1;
@@ -4053,8 +4075,8 @@ sloth_render_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
     
     if (gl.selected) 
     {
-      bool is_selection_start = selection_quad_v0;
-      bool is_selected_line_start = gl.is_line_start;
+      Sloth_Bool is_selection_start = selection_quad_v0;
+      Sloth_Bool is_selected_line_start = gl.is_line_start;
       if (is_selection_start || is_selected_line_start) 
       {
         // if there's already a selection being processed, render that
@@ -4496,6 +4518,18 @@ sloth_ctx_free(Sloth_Ctx* sloth)
     Sloth_U8* unused = sloth_realloc(atlas->data, atlas->dim * atlas->dim, 0);
   }
   
+}
+
+Sloth_Function void 
+sloth_frame_render(Sloth_Ctx* sloth)
+{
+  Sloth_Renderer_Render* cb = sloth->renderer_render;
+  if (!cb) return;
+  
+  for (Sloth_U32 i = 0; i < sloth->glyph_atlases_cap; i++)
+  {
+    cb(sloth, i);
+  }
 }
 
 typedef struct Sloth_Tree_Print_Data Sloth_Tree_Print_Data;
@@ -5474,51 +5508,6 @@ sloth_sokol_event(Sloth_Frame_Desc* fd, const sapp_event* event)
 }
 
 Sloth_Function void
-sloth_sokol_init(Sloth_Ctx* sloth)
-{
-  SLOTH_PROFILE_BEGIN;
-  sloth->render_data = sloth_realloc(sloth->render_data, 0, sizeof(Sloth_Sokol_Data));
-  sloth->screen_dpi_scale = sapp_dpi_scale();
-  
-  Sloth_Sokol_Data* sd = (Sloth_Sokol_Data*)sloth->render_data;
-  sloth_zero_struct_(sd);
-  
-  sloth->renderer_atlas_updated = sloth_renderer_sokol_atlas_updated;
-  
-  sg_pass_action pass_action;
-  sloth_zero_struct_(&pass_action);
-  pass_action.colors[0].action = SG_ACTION_CLEAR;
-  pass_action.colors[0].value.r = 0;
-  pass_action.colors[0].value.g = 0;
-  pass_action.colors[0].value.b = 0;
-  pass_action.colors[0].value.a = 1;
-  sd->pass_action = pass_action;
-  
-  sg_pipeline_desc pd;
-  sloth_zero_struct_(&pd);
-  pd.shader = sg_make_shader(sloth_viz_shader_desc(sg_query_backend()));
-  pd.index_type = SG_INDEXTYPE_UINT32;
-  pd.layout.attrs[ATTR_sloth_viz_vs_position].format = SG_VERTEXFORMAT_FLOAT3;
-  pd.layout.attrs[ATTR_sloth_viz_vs_uv].format       = SG_VERTEXFORMAT_FLOAT2;
-  pd.layout.attrs[ATTR_sloth_viz_vs_color].format    = SG_VERTEXFORMAT_FLOAT4;
-  pd.label = "sloth sokol pipeline";
-  pd.colors[0].blend.enabled = true;
-  pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
-  pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA;
-  pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
-  pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL,
-  pd.depth.write_enabled = true;
-  sd->pip = sg_make_pipeline(&pd);
-  
-  if (sloth->z_depth_min == 0 && sloth->z_depth_max == 0)
-  {
-    sloth->z_depth_min = -1;
-    sloth->z_depth_max = 100;
-  }
-}
-
-Sloth_Function void
 sloth_render_sokol_(Sloth_Ctx* sloth, Sloth_U32 pass_index, Sloth_U32 width, Sloth_U32 height, Sloth_R32 dpi_scale)
 {
   SLOTH_PROFILE_BEGIN;
@@ -5598,6 +5587,51 @@ sloth_render_sokol(Sloth_Ctx* sloth, Sloth_U32 pass_index)
 {
   SLOTH_PROFILE_BEGIN;
   return sloth_render_sokol_(sloth, pass_index, sloth->screen_dim.x, sloth->screen_dim.y, sloth->screen_dpi_scale);
+}
+
+Sloth_Function void
+sloth_sokol_init(Sloth_Ctx* sloth)
+{
+  SLOTH_PROFILE_BEGIN;
+  sloth->render_data = sloth_realloc(sloth->render_data, 0, sizeof(Sloth_Sokol_Data));
+  sloth->screen_dpi_scale = sapp_dpi_scale();
+  sloth->renderer_atlas_updated = sloth_renderer_sokol_atlas_updated;
+  sloth->renderer_render = sloth_render_sokol;
+  
+  Sloth_Sokol_Data* sd = (Sloth_Sokol_Data*)sloth->render_data;
+  sloth_zero_struct_(sd);
+  
+  sg_pass_action pass_action;
+  sloth_zero_struct_(&pass_action);
+  pass_action.colors[0].action = SG_ACTION_CLEAR;
+  pass_action.colors[0].value.r = 0;
+  pass_action.colors[0].value.g = 0;
+  pass_action.colors[0].value.b = 0;
+  pass_action.colors[0].value.a = 1;
+  sd->pass_action = pass_action;
+  
+  sg_pipeline_desc pd;
+  sloth_zero_struct_(&pd);
+  pd.shader = sg_make_shader(sloth_viz_shader_desc(sg_query_backend()));
+  pd.index_type = SG_INDEXTYPE_UINT32;
+  pd.layout.attrs[ATTR_sloth_viz_vs_position].format = SG_VERTEXFORMAT_FLOAT3;
+  pd.layout.attrs[ATTR_sloth_viz_vs_uv].format       = SG_VERTEXFORMAT_FLOAT2;
+  pd.layout.attrs[ATTR_sloth_viz_vs_color].format    = SG_VERTEXFORMAT_FLOAT4;
+  pd.label = "sloth sokol pipeline";
+  pd.colors[0].blend.enabled = true;
+  pd.colors[0].blend.src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA;
+  pd.colors[0].blend.dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  pd.colors[0].blend.src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA;
+  pd.colors[0].blend.dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+  pd.depth.compare = SG_COMPAREFUNC_LESS_EQUAL,
+  pd.depth.write_enabled = true;
+  sd->pip = sg_make_pipeline(&pd);
+  
+  if (sloth->z_depth_min == 0 && sloth->z_depth_max == 0)
+  {
+    sloth->z_depth_min = -1;
+    sloth->z_depth_max = 100;
+  }
 }
 
 #endif // SLOTH_SOKOL_RENDERER

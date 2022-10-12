@@ -4,7 +4,8 @@
 #define SLOTH_TESTS_UTILS_H
 
 #define sloth_test_assert(c) if (!(c)) { do{ *((volatile int*)0) = 0xFFFF; }while(0); }
-#define sloth_r32_equals(a,b) (fabsf((a) - (b)) < 0.001f)
+#define sloth_r32_abs(v) ((v) < 0 ? -(v) : (v))
+#define sloth_r32_equals(a,b) (sloth_r32_abs((a) - (b)) < 0.001f)
 
 Sloth_U32
 sloth_test_string_len(char* s)
@@ -14,7 +15,7 @@ sloth_test_string_len(char* s)
   return (Sloth_U32)(at - s);
 }
 
-bool
+Sloth_Bool
 sloth_test_strings_equal(char* a, char* b)
 {
   Sloth_U32 a_len = sloth_test_string_len(a);

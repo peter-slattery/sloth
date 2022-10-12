@@ -5386,8 +5386,6 @@ struct Sloth_Sokol_Data
   
   sg_pass_action pass_action;
   sg_pipeline pip;
-  
-  Sloth_U32 bind_quad_cap_;
 };
 
 Sloth_Function Sloth_U32
@@ -5444,7 +5442,6 @@ sloth_renderer_sokol_atlas_updated(Sloth_Ctx* sloth, Sloth_U32 atlas_index)
   // Grow the existing texture if needed
   if (pass_bind->fs_images[SLOT_tex].id == 0 || atlas->dirty_state == Sloth_GlyphAtlas_Dirty_Grow) 
   {
-    // create 
     sg_filter filter = SG_FILTER_NEAREST; // SG_FILTER_LINEAR
     sg_image_desc atlas_texture_desc = {
       .width  = atlas_dim,
@@ -5466,16 +5463,10 @@ sloth_renderer_sokol_atlas_updated(Sloth_Ctx* sloth, Sloth_U32 atlas_index)
   
   if (atlas->dirty_state == Sloth_GlyphAtlas_Dirty_UpdateData)
   {
-    // TODO(PS): This wont compile in c++
-    // just update the data of the existing texture since
-    // the new data still fits
-    sg_image_data data = {
-      .subimage[0][0] = {
-        .ptr = (const char*)atlas->data,
-        .size = atlas_dim * atlas_dim * sizeof(Sloth_U32),
-      },
-    };
-    
+    // update the data of the existing texture since the new data still fits
+    sg_image_data data = SLOTH_ZII;
+    data.subimage[0][0].ptr = (const char*)atlas->data;
+    data.subimage[0][0].size = atlas_dim * atlas_dim * sizeof(Sloth_U32);
     sg_update_image(pass_bind->fs_images[SLOT_tex], &data);
   }
 }
@@ -5528,21 +5519,6 @@ sloth_render_sokol_(Sloth_Ctx* sloth, Sloth_U32 pass_index, Sloth_U32 width, Slo
   Sloth_Sokol_Pass* pass = sd->passes + pass_index;
   sg_bindings* pass_bind = &pass->bind;
   
-  // TODO(PS): probably make this togglable at runtime?
-#define DRAW_ATLAS_OVER_ALL 0
-#if DRAW_ATLAS_OVER_ALL
-  Sloth_Glyph_Atlas* atlas = sloth->glyph_atlases + pass_index;
-  Sloth_Rect tex_bounds;
-  tex_bounds.value_min.x = 10;
-  tex_bounds.value_min.y = 10;
-  tex_bounds.value_max.x = 10 + atlas->dim;
-  tex_bounds.value_max.y = 10 + atlas->dim;
-  Sloth_V2 uv_min, uv_max;
-  uv_min.x = 0; uv_min.y = 0;
-  uv_max.x = 1; uv_max.y = 1;
-  sloth_render_quad_ptc(vibuf, tex_bounds, 0, uv_min, uv_max, 0xFFFFFFFF);
-#endif
-  
   // Update the bindings
   if (vibuf->verts_len > pass->quad_cap * 4) {
     Sloth_U32 new_cap = pass->quad_cap * 2;
@@ -5550,9 +5526,6 @@ sloth_render_sokol_(Sloth_Ctx* sloth, Sloth_U32 pass_index, Sloth_U32 width, Slo
     pass->quad_cap = sloth_render_sokol_buffers_create(sd, pass_bind, new_cap);
   }
   
-  // TODO: Check if we are about to push a range bigger than the 
-  // buffer's size. If we are, we need to create a new buffer and
-  // free the old one
   sg_range vertex_range;
   vertex_range.ptr = (const void*)vibuf->verts;
   vertex_range.size = vibuf->verts_len * sizeof(Sloth_R32);

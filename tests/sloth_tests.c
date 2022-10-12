@@ -5,7 +5,8 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define SLOTH_IMPLEMENTATION 1
+// Leaving the interface here, and including the implementation at the end
+// to test doing the single file include trick
 #include "../src/sloth.h"
 #include "sloth_tests_utils.h"
 
@@ -110,24 +111,6 @@ UTEST(widget_tree, multi_frame_removal)
   sloth_test_multi_frame_removal_frame_b(&sloth, 1);
   sloth_test_multi_frame_removal_frame_b(&sloth, 2);
   sloth_ctx_free(&sloth);    
-}
-
-UTEST(math, is_pow2)
-{
-  EXPECT_TRUE(sloth_is_pow2(2048));
-  EXPECT_FALSE(sloth_is_pow2(1920));
-}
-
-UTEST(math, remap)
-{
-  Sloth_R32 v0 = sloth_remap_r32(2, 1.5f, 2.5f, 5, 6);
-  EXPECT_EQ(v0, 5.5f);
-  
-  Sloth_R32 v1 = sloth_remap_r32(1, 1.5f, 2.5f, 5, 6);
-  EXPECT_EQ(v1, 4.5f);
-  
-  Sloth_R32 v2 = sloth_remap_r32(3, 1.5f, 2.5f, 5, 6);
-  EXPECT_EQ(v2, 6.5f);
 }
 
 UTEST(math, vectors)
@@ -472,10 +455,10 @@ UTEST(layout, size)
 {
   // see @Maintenance tag in Sloth_Size_Box if this fails
   Sloth_Size_Box b = {
-    .left = sloth_size_pixels(0),
-    .right = sloth_size_pixels(5),
-    .top = sloth_size_pixels(10),
-    .bottom = sloth_size_pixels(15),
+    .left = SLOTH_SIZE_PIXELS(0),
+    .right = SLOTH_SIZE_PIXELS(5),
+    .top = SLOTH_SIZE_PIXELS(10),
+    .bottom = SLOTH_SIZE_PIXELS(15),
   };
   
   // testing to make sure left corresponds to E[Axis_X].min
@@ -599,9 +582,9 @@ UTEST(layout, widget_sizing)
   Sloth_Widget_Desc ele_desc;
   Sloth_Widget_Desc root_desc = {
     .layout = {
-      .width = sloth_size_pixels(800),
-      .height = sloth_size_pixels(900),
-      //.margin.top = sloth_size_pixels(32),
+      .width = SLOTH_SIZE_PIXELS(800),
+      .height = SLOTH_SIZE_PIXELS(900),
+      //.margin.top = SLOTH_SIZE_PIXELS(32),
       .direction = Sloth_LayoutDirection_TopDown,
     },
     .style.color_bg = 0x333333FF,
@@ -609,8 +592,8 @@ UTEST(layout, widget_sizing)
   sloth_push_widget(&sloth, root_desc, "root");
   ele_desc = (Sloth_Widget_Desc){
     .layout = {
-      .width = sloth_size_pixels(850),
-      .height = sloth_size_pixels(200),
+      .width = SLOTH_SIZE_PIXELS(850),
+      .height = SLOTH_SIZE_PIXELS(200),
     },
     .style.color_bg = 0xFFFFFFFF,
   };
@@ -639,6 +622,27 @@ UTEST(layout, widget_sizing)
 #endif
   
   sloth_ctx_free(&sloth);
+}
+
+#define SLOTH_IMPLEMENTATION 1
+#include "../src/sloth.h"
+
+UTEST(math, is_pow2)
+{
+  EXPECT_TRUE(sloth_is_pow2(2048));
+  EXPECT_FALSE(sloth_is_pow2(1920));
+}
+
+UTEST(math, remap)
+{
+  Sloth_R32 v0 = sloth_remap_r32(2, 1.5f, 2.5f, 5, 6);
+  EXPECT_EQ(v0, 5.5f);
+  
+  Sloth_R32 v1 = sloth_remap_r32(1, 1.5f, 2.5f, 5, 6);
+  EXPECT_EQ(v1, 4.5f);
+  
+  Sloth_R32 v2 = sloth_remap_r32(3, 1.5f, 2.5f, 5, 6);
+  EXPECT_EQ(v2, 6.5f);
 }
 
 UTEST_MAIN();

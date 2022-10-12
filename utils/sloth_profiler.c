@@ -479,13 +479,13 @@ sp_popup_f(char* fmt, ...)
 {
   Sloth_Widget_Desc desc = {
     .layout = {
-      .width = sloth_size_text_content(),
-      .height = sloth_size_text_content(),
+      .width = SLOTH_SIZE_TEXT_CONTENT(),
+      .height = SLOTH_SIZE_TEXT_CONTENT(),
       .margin = sloth_size_box_uniform_pixels(8),
       .position = {
         .kind = Sloth_LayoutPosition_FixedOnScreen,
-        .left = sloth_size_pixels(sp_ctx_->mouse_pos.x),
-        .top = sloth_size_pixels(sp_ctx_->mouse_pos.y),
+        .left = SLOTH_SIZE_PIXELS(sp_ctx_->mouse_pos.x),
+        .top = SLOTH_SIZE_PIXELS(sp_ctx_->mouse_pos.y),
         .z = -0.5f,
       },
     },
@@ -510,8 +510,8 @@ sp_button_f(char* fmt, ...)
   bool result = false;
   Sloth_Widget_Desc desc = {
     .layout = {
-      .width = sloth_size_text_content(),
-      .height = sloth_size_text_content(),
+      .width = SLOTH_SIZE_TEXT_CONTENT(),
+      .height = SLOTH_SIZE_TEXT_CONTENT(),
       .margin = sloth_size_box_uniform_pixels(8),
     },
     .style = {
@@ -542,8 +542,8 @@ sp_h_scope_slider(char* name, SP_R64* cur_min, SP_R64* cur_max)
 {
   Sloth_Widget_Desc desc = {
     .layout = {
-      .width = sloth_size_percent_parent(1),
-      .height = sloth_size_pixels(16),
+      .width = SLOTH_SIZE_PERCENT_OF_PARENT(1),
+      .height = SLOTH_SIZE_PIXELS(16),
     },
     .style = {
       .color_bg = 0x000000FF,
@@ -554,8 +554,8 @@ sp_h_scope_slider(char* name, SP_R64* cur_min, SP_R64* cur_max)
   
   Sloth_Widget_Desc handle_desc = {
     .layout = {
-      .width = sloth_size_pixels(16),
-      .height = sloth_size_pixels(16),
+      .width = SLOTH_SIZE_PIXELS(16),
+      .height = SLOTH_SIZE_PIXELS(16),
       .position.kind = Sloth_LayoutPosition_FixedInParent
     },
     .style = {
@@ -585,12 +585,12 @@ sp_frame_bar(SP_U32 frame_i)
   
   Sloth_Widget_Desc border_desc = {
     .layout = {
-      .width = sloth_size_percent_parent(1),
+      .width = SLOTH_SIZE_PERCENT_OF_PARENT(1),
       .height = sloth_size_children_sum(),
       .margin = sloth_size_box_uniform_pixels(4),
       .direction = Sloth_LayoutDirection_LeftToRight,
       // TODO
-      //.child_h_gap = sloth_size_pixels(4),
+      //.child_h_gap = SLOTH_SIZE_PIXELS(4),
     },
     .style = {
       .color_outline = 0xFFFFFFFF,
@@ -599,8 +599,8 @@ sp_frame_bar(SP_U32 frame_i)
   };
   Sloth_Widget_Desc frame_box_desc = {
     .layout = {
-      .width = sloth_size_percent_parent(1.0f / sp_pctx_->frames_cap),
-      .height = sloth_size_pixels(64),
+      .width = SLOTH_SIZE_PERCENT_OF_PARENT(1.0f / sp_pctx_->frames_cap),
+      .height = SLOTH_SIZE_PIXELS(64),
     },
     .style = {
       .color_bg = 0xFFFFFFFF,
@@ -657,8 +657,8 @@ sp_frame_header(Sloth_Profiler_Frame* frame, SP_U32 frame_i)
 {
   Sloth_Widget_Desc header_desc = {
     .layout = {
-      .width = sloth_size_percent_parent(1),
-      .height = sloth_size_text_content(),
+      .width = SLOTH_SIZE_PERCENT_OF_PARENT(1),
+      .height = SLOTH_SIZE_TEXT_CONTENT(),
       .margin = sloth_size_box_uniform_pixels(4),
     },
     .style = {
@@ -684,10 +684,10 @@ sp_flame_graph_call(Sloth_Profiler_Frame* frame, SP_U32 call_index, Sloth_R32 vi
 {
   Sloth_Widget_Desc scope_desc = {
     .layout = {
-      .height = sloth_size_pixels(16),
+      .height = SLOTH_SIZE_PIXELS(16),
       .position = {
         .kind = Sloth_LayoutPosition_FixedInParent,
-        .top = sloth_size_pixels(16 * depth),
+        .top = SLOTH_SIZE_PIXELS(16 * depth),
       },
     },
     .style = {
@@ -764,13 +764,13 @@ sp_flame_graph_call(Sloth_Profiler_Frame* frame, SP_U32 call_index, Sloth_R32 vi
       
       
       
-      scope_desc.layout.width = sloth_size_pixels(visible_width_pixels * call_pct_duration);
-      scope_desc.layout.position.left = sloth_size_pixels(visible_width_pixels * call_pct_start);
+      scope_desc.layout.width = SLOTH_SIZE_PIXELS(visible_width_pixels * call_pct_duration);
+      scope_desc.layout.position.left = SLOTH_SIZE_PIXELS(visible_width_pixels * call_pct_start);
       
       Sloth_Widget_Desc scope_bar_desc = {
         .layout = {
-          .width = sloth_size_percent_parent(call_pct_duration),
-          .height = sloth_size_pixels(16),
+          .width = SLOTH_SIZE_PERCENT_OF_PARENT(call_pct_duration),
+          .height = SLOTH_SIZE_PIXELS(16),
         },
         .style = {
           .color_outline = 0x00FF00FF,
@@ -809,8 +809,8 @@ sp_flame_graph(Sloth_Profiler_Frame* frame, Sloth_R32 pixel_width)
 {
   Sloth_Widget_Desc fg_desc = {
     .layout = {
-      .width = sloth_size_percent_parent(1),
-      .height = sloth_size_pixels(128),
+      .width = SLOTH_SIZE_PERCENT_OF_PARENT(1),
+      .height = SLOTH_SIZE_PIXELS(128),
       .margin = sloth_size_box_uniform_pixels(4),
     },
     .style = {
@@ -854,13 +854,13 @@ sp_draw()
   
   Sloth_Widget_Desc bg_desc = {
     .layout = {
-      .width = sloth_size_pixels(800),
-      .height = sloth_size_pixels(800),
+      .width = SLOTH_SIZE_PIXELS(800),
+      .height = SLOTH_SIZE_PIXELS(800),
       .margin = sloth_size_box_uniform_pixels(16),
       .position = {
         .kind = Sloth_LayoutPosition_FixedOnScreen,
-        .left = sloth_size_pixels(32),
-        .top = sloth_size_pixels(48),
+        .left = SLOTH_SIZE_PIXELS(32),
+        .top = SLOTH_SIZE_PIXELS(48),
       },
     },
     .style = {
@@ -875,8 +875,8 @@ sp_draw()
     
     Sloth_Widget_Desc d = {
       .layout = {
-        .width = sloth_size_percent_parent(1),
-        .height = sloth_size_pixels(256),
+        .width = SLOTH_SIZE_PERCENT_OF_PARENT(1),
+        .height = SLOTH_SIZE_PIXELS(256),
       },
     };
     Sloth_Widget_Result r = sloth_cmp_push_scroll_area_f(sp_ctx_, d, "###sloth_profiler_scroll_area");    
@@ -887,7 +887,7 @@ sp_draw()
         
         Sloth_Widget_Desc row_desc = {
           .layout = {
-            .width = sloth_size_percent_parent(1),
+            .width = SLOTH_SIZE_PERCENT_OF_PARENT(1),
             .height = sloth_size_children_sum(),
             .direction = Sloth_LayoutDirection_LeftToRight,
           },
@@ -898,11 +898,11 @@ sp_draw()
           .cols_count = 3,
           .rows_count = 1,
           .cols = {
-            [0] = sloth_size_percent_parent(.5f),
-            [1] = sloth_size_percent_parent(.25f),
-            [2] = sloth_size_percent_parent(.25f),
+            [0] = SLOTH_SIZE_PERCENT_OF_PARENT(.5f),
+            [1] = SLOTH_SIZE_PERCENT_OF_PARENT(.25f),
+            [2] = SLOTH_SIZE_PERCENT_OF_PARENT(.25f),
           },
-          .rows = { [0] = sloth_size_text_content() },
+          .rows = { [0] = SLOTH_SIZE_TEXT_CONTENT() },
           .style = {
             .color_text = 0xFFFFFFFF,
             .color_bg = 2,

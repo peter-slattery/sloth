@@ -28,7 +28,7 @@ sg_pass_action default_pass = {
 void init_cb() {
   sg_setup(&(sg_desc){ .context = sapp_sgcontext() });
   
-  sloth_render_sokol_init(&sloth);
+  sloth_sokol_init(&sloth);
   sloth_ft2_init(&sloth);
   sloth_ctx_init(&sloth);
   
@@ -38,14 +38,7 @@ void init_cb() {
 }
 
 void frame_cb() {
-  // Sample UI
-  sloth_frame_desc.screen_dim = (Sloth_V2){
-    .x = sapp_widthf(),
-    .y = sapp_heightf(),
-  };
-  sloth_frame_desc.high_dpi = sapp_high_dpi();
-  sloth_frame_desc.dpi_scale = sapp_dpi_scale();
-  sloth_frame_prepare(&sloth, sloth_frame_desc);
+  sloth_sokol_frame_prepare(&sloth, &sloth_frame_desc);
   
   Sloth_Widget_Desc rd = {
     .layout = {
@@ -87,27 +80,7 @@ void frame_cb() {
 }
 
 void event_cb(const sapp_event* event) {
-  // TODO(PS): might be a good idea to include an event handler
-  switch (event->type)
-  {
-    case SAPP_EVENTTYPE_MOUSE_MOVE:
-    {
-      sloth_frame_desc.mouse_pos.x = event->mouse_x;
-      sloth_frame_desc.mouse_pos.y = event->mouse_y;
-    } break;
-    
-    case SAPP_EVENTTYPE_MOUSE_DOWN:
-    {
-      sloth_frame_desc.mouse_button_l |= Sloth_MouseState_IsDown;
-    } break;
-    
-    case SAPP_EVENTTYPE_MOUSE_UP:
-    {
-      sloth_frame_desc.mouse_button_l = Sloth_MouseState_WasDown;
-    } break;
-    
-    default: {} break;
-  }
+  sloth_sokol_event(&sloth_frame_desc, event);
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {

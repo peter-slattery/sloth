@@ -29,7 +29,6 @@ CompilerFlags="-ObjC -fdiagnostics-absolute-paths -O0 -g -DDEBUG=1 -fsanitize=ad
 LinkerFlags=""
 LinkerLibraries="-framework OpenGL -framework Cocoa -framework AudioToolbox $PROJECT_PATH/examples/libs/freetype/libfreetype-mac.a -I$PROJECT_PATH/examples/libs/freetype/freetype2"
 
-echo $LinkerLibraries
 # --------------------------------------------
 #            Compiling Samples
 

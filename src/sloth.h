@@ -1,5 +1,5 @@
-#ifndef SLOTH_H
-#define SLOTH_H
+#ifndef SLOTH_INTERFACE
+#define SLOTH_INTERFACE
 
 // DOCUMENTATION
 // 
@@ -980,21 +980,24 @@ Sloth_Function Sloth_V2 sloth_v2_add(Sloth_V2 a, Sloth_V2 b);
 Sloth_Function Sloth_V2 sloth_v2_sub(Sloth_V2 a, Sloth_V2 b);
 Sloth_Function Sloth_V2 sloth_v2_mulf(Sloth_V2 a, Sloth_R32 b);
 
+#define SLOTH_SIZE(v, k) (Sloth_Size){ (v), (k) }
+#define SLOTH_SIZE_CHILDREN_SUM         SLOTH_SIZE(0, Sloth_SizeKind_ChildrenSum)
+#define SLOTH_SIZE_PERCENT_OF_PARENT(v) SLOTH_SIZE((v), Sloth_SizeKind_PercentOfParent)
+#define SLOTH_SIZE_TEXT_CONTENT         SLOTH_SIZE(0, Sloth_SizeKind_TextContent)
+#define SLOTH_SIZE_PIXELS(v)            SLOTH_SIZE((v), Sloth_SizeKind_Pixels)
+
 Sloth_Function Sloth_Rect sloth_rect_union(Sloth_Rect a, Sloth_Rect b);
 Sloth_Function void       sloth_rect_expand(Sloth_Rect* target, Sloth_R32 left, Sloth_R32 top, Sloth_R32 right, Sloth_R32 bottom);
 Sloth_Function Sloth_V2   sloth_rect_dim(Sloth_Rect r);
 Sloth_Function Sloth_Bool sloth_rect_contains(Sloth_Rect r, Sloth_V2 p);
 Sloth_Function Sloth_V2   sloth_rect_get_closest_point(Sloth_Rect r, Sloth_V2 p);
-
-// Size Functions
-Sloth_Function Sloth_Size sloth_size(Sloth_Size_Kind k, Sloth_R32 v);
-Sloth_Function Sloth_Size sloth_size_pixels(Sloth_R32 v);
-Sloth_Function Sloth_Size sloth_size_text_content();
-Sloth_Function Sloth_Size sloth_size_percent_parent(Sloth_R32 v);
-Sloth_Function Sloth_Size sloth_size_children_sum();
+Sloth_Function bool       sloth_clip_rect_and_uv(Sloth_Rect clip, Sloth_Rect bounds, Sloth_Rect uv, Sloth_Rect* bounds_clipped, Sloth_Rect* uv_clipped);
 
 Sloth_Function Sloth_Size_Box sloth_size_box_uniform(Sloth_Size_Kind k, Sloth_R32 v);
 Sloth_Function Sloth_Size_Box sloth_size_box_uniform_pixels(Sloth_R32 v);
+
+// Color
+Sloth_Function Sloth_U32 sloth_color_apply_gamma(Sloth_U32 color, Sloth_R32 power);
 
 // Hashtable Functions
 Sloth_Function void       sloth_hashtable_add(Sloth_Hashtable* table, Sloth_U32 key, Sloth_U8* value);
@@ -1032,7 +1035,7 @@ Sloth_Function bool           sloth_glyph_id_matches_charcode(Sloth_Glyph_ID id,
 
 // Glyph Atlas
 Sloth_Function void sloth_glyph_atlas_resize(Sloth_Glyph_Atlas* atlas, Sloth_U32 new_dim);
-
+Sloth_Function Sloth_Glyph_Atlas* sloth_create_atlas(Sloth_Ctx* sloth, Sloth_U8 family, Sloth_U32 min_dim);
 // Glyph Store
 Sloth_Function bool sloth_glyph_store_contains(Sloth_Glyph_Store* store, Sloth_Glyph_ID id);
 Sloth_Function void sloth_glyph_store_free(Sloth_Glyph_Store* store);
@@ -1124,6 +1127,8 @@ Sloth_Function void sloth_tree_walk_postorder(Sloth_Ctx* sloth, Sloth_Tree_Walk_
 Sloth_Function Sloth_Widget_Result sloth_push_widget_v(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt, va_list args);
 Sloth_Function Sloth_Widget_Result sloth_push_widget_f(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt, ...);
 Sloth_Function Sloth_Widget_Result sloth_push_widget(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* text);
+Sloth_Function void                sloth_pop_widget(Sloth_Ctx* sloth);
+Sloth_Function void                sloth_pop_widget_safe(Sloth_Ctx* sloth, Sloth_Widget_Result result);
 
 // sloth_widget_f and sloth_widget both push and pop the widget, wrapping its entire lifetime into a single call
 Sloth_Function Sloth_Widget_Result sloth_widget_f(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt, ...);
@@ -1145,11 +1150,15 @@ Sloth_Function void      sloth_vibuffer_free(Sloth_VIBuffer* buf);
 Sloth_Function void sloth_ctx_init(Sloth_Ctx* ctx);
 Sloth_Function void sloth_ctx_activate_glyph_family(Sloth_Ctx* sloth, Sloth_U32 family);
 Sloth_Function void sloth_ctx_free(Sloth_Ctx* sloth);
+Sloth_Function void sloth_frame_prepare(Sloth_Ctx* sloth, Sloth_Frame_Desc desc);
+Sloth_Function void sloth_frame_advance(Sloth_Ctx* sloth);
 
 // TODO
 // - Convenience functions
 //    - load_sprite
 //    - load_font
+
+#endif // SLOTH_INTERFACE
 
 //////// IMPLEMENTATION  ////////
 #ifdef SLOTH_IMPLEMENTATION
@@ -1440,56 +1449,12 @@ sloth_clip_rect_and_uv(Sloth_Rect clip, Sloth_Rect bounds, Sloth_Rect uv, Sloth_
   return dim.x > 0 && dim.y > 0;
 }
 
-Sloth_Function Sloth_Size 
-sloth_size(Sloth_Size_Kind k, Sloth_R32 v)
-{
-  SLOTH_PROFILE_BEGIN;
-  Sloth_Size result;
-  result.value = v;
-  result.kind = k;
-  return result;
-}
-
-Sloth_Function Sloth_Size 
-sloth_size_pixels(Sloth_R32 v)
-{
-  SLOTH_PROFILE_BEGIN;
-  return sloth_size(Sloth_SizeKind_Pixels, v);
-}
-
-Sloth_Function Sloth_Size 
-sloth_size_text_content()
-{
-  SLOTH_PROFILE_BEGIN;
-  return sloth_size(Sloth_SizeKind_TextContent, 0);
-}
-
-Sloth_Function Sloth_Size 
-sloth_size_percent_parent(Sloth_R32 v)
-{
-  SLOTH_PROFILE_BEGIN;
-  return sloth_size(Sloth_SizeKind_PercentOfParent, v);
-}
-
-#define SLOTH_SIZE(v, k) (Sloth_Size){ (v), (k) }
-#define SLOTH_SIZE_CHILDREN_SUM         SLOTH_SIZE(0, Sloth_SizeKind_ChildrenSum)
-#define SLOTH_SIZE_PERCENT_OF_PARENT(v) SLOTH_SIZE((v), Sloth_SizeKind_PercentOfParent)
-#define SLOTH_SIZE_TEXT_CONTENT         SLOTH_SIZE(0, Sloth_SizeKind_TextContent)
-#define SLOTH_SIZE_PIXELS(v)            SLOTH_SIZE((v), Sloth_SizeKind_Pixels)
-
-Sloth_Function Sloth_Size 
-sloth_size_children_sum()
-{
-  SLOTH_PROFILE_BEGIN;
-  return sloth_size(Sloth_SizeKind_ChildrenSum, 0);
-}
-
 Sloth_Function Sloth_Size_Box 
 sloth_size_box_uniform(Sloth_Size_Kind k, Sloth_R32 v)
 {
   SLOTH_PROFILE_BEGIN;
   Sloth_Size_Box result;
-  result.left = sloth_size(k, v);
+  result.left = SLOTH_SIZE(k, v);
   result.right = result.left;
   result.top = result.left;
   result.bottom = result.left;
@@ -1508,8 +1473,8 @@ sloth_position_fixed_in_parent_px(Sloth_R32 left, Sloth_R32 top)
 {
   Sloth_Layout_Position result;
   result.kind = Sloth_LayoutPosition_FixedInParent;
-  result.left = sloth_size_pixels(left);
-  result.top  = sloth_size_pixels(top);
+  result.left = SLOTH_SIZE_PIXELS(left);
+  result.top  = SLOTH_SIZE_PIXELS(top);
   return result;
 }
 
@@ -1518,8 +1483,8 @@ sloth_position_fixed_on_screen_px(Sloth_R32 left, Sloth_R32 top)
 {
   Sloth_Layout_Position result;
   result.kind = Sloth_LayoutPosition_FixedOnScreen;
-  result.left = sloth_size_pixels(left);
-  result.top  = sloth_size_pixels(top);
+  result.left = SLOTH_SIZE_PIXELS(left);
+  result.top  = SLOTH_SIZE_PIXELS(top);
   return result;
 }
 
@@ -2892,8 +2857,8 @@ sloth_widget_handle_input(Sloth_Ctx* sloth, Sloth_Widget* widget)
 Sloth_Function Sloth_Widget_Layout
 sloth_widget_layout_apply_defaults(Sloth_Ctx* sloth, Sloth_Widget_Layout layout)
 {
-  if (layout.width.kind == Sloth_SizeKind_None)  layout.width  = sloth_size_children_sum();
-  if (layout.height.kind == Sloth_SizeKind_None) layout.height = sloth_size_children_sum();
+  if (layout.width.kind == Sloth_SizeKind_None)  layout.width  = SLOTH_SIZE_CHILDREN_SUM;
+  if (layout.height.kind == Sloth_SizeKind_None) layout.height = SLOTH_SIZE_CHILDREN_SUM;
   sloth_widget_validate_layout_(layout);
   return layout;
 }
@@ -3913,10 +3878,10 @@ sloth_size_kind_text_contents_layout_text(Sloth_Ctx* sloth, Sloth_Widget* widget
   if (widget->child_first == 0 && widget->text_len > 0)
   {
     if (widget->layout.width.kind == Sloth_SizeKind_ChildrenSum) {
-      widget->layout.width = sloth_size_text_content();
+      widget->layout.width = SLOTH_SIZE_TEXT_CONTENT;
     }
     if (widget->layout.height.kind == Sloth_SizeKind_ChildrenSum) {
-      widget->layout.height = sloth_size_text_content();
+      widget->layout.height = SLOTH_SIZE_TEXT_CONTENT;
     }
   }
   
@@ -4664,8 +4629,8 @@ Sloth_Function Sloth_Widget_Result
 sloth_cmp_text_f(Sloth_Ctx* sloth, Sloth_Text_Style_Flags text_style, Sloth_U32 color_text, char* fmt, ...)
 {
   Sloth_Widget_Desc desc; sloth_zero_struct_(&desc);
-  desc.layout.width     = sloth_size_text_content();
-  desc.layout.height    = sloth_size_text_content();
+  desc.layout.width     = SLOTH_SIZE_TEXT_CONTENT;
+  desc.layout.height    = SLOTH_SIZE_TEXT_CONTENT;
   desc.style.color_text = color_text;
   desc.style.text_style = text_style;
   desc.input.flags = Sloth_WidgetInput_TextSelectable;
@@ -4743,13 +4708,13 @@ sloth_cmp_button_v(Sloth_Ctx* sloth, Sloth_U32 color_bg, Sloth_U32 color_text, S
 {
   Sloth_Widget_Desc desc = {
     .layout = {
-      .width = sloth_size_text_content(),
-      .height = sloth_size_text_content(),
+      .width = SLOTH_SIZE_TEXT_CONTENT,
+      .height = SLOTH_SIZE_TEXT_CONTENT,
       .margin = {
-        .left = sloth_size_pixels(8),
-        .right = sloth_size_pixels(8),
-        .top = sloth_size_pixels(4),
-        .bottom = sloth_size_pixels(4),
+        .left = SLOTH_SIZE_PIXELS(8),
+        .right = SLOTH_SIZE_PIXELS(8),
+        .top = SLOTH_SIZE_PIXELS(4),
+        .bottom = SLOTH_SIZE_PIXELS(4),
       },
     },
     .style = {
@@ -4786,13 +4751,13 @@ sloth_cmp_toggle_v(Sloth_Ctx* sloth, Sloth_Bool state, Sloth_U32 color_bg, Sloth
 {
   Sloth_Widget_Desc desc = {
     .layout = {
-      .width = sloth_size_text_content(),
-      .height = sloth_size_text_content(),
+      .width = SLOTH_SIZE_TEXT_CONTENT,
+      .height = SLOTH_SIZE_TEXT_CONTENT,
       .margin = {
-        .left = sloth_size_pixels(8),
-        .right = sloth_size_pixels(8),
-        .top = sloth_size_pixels(4),
-        .bottom = sloth_size_pixels(4),
+        .left = SLOTH_SIZE_PIXELS(8),
+        .right = SLOTH_SIZE_PIXELS(8),
+        .top = SLOTH_SIZE_PIXELS(4),
+        .bottom = SLOTH_SIZE_PIXELS(4),
       },
     },
     .style = {
@@ -4859,8 +4824,8 @@ sloth_cmp_slider_v(Sloth_Ctx* sloth,
   // Modify the input description
   Sloth_Layout_Position position; sloth_zero_struct_(&position);
   position.kind = Sloth_LayoutPosition_FixedInParent;
-  position.at.E[Sloth_Axis_X].E[x_root] = sloth_size_percent_parent(pct_x);
-  position.at.E[Sloth_Axis_Y].E[y_root] = sloth_size_percent_parent(pct_y);
+  position.at.E[Sloth_Axis_X].E[x_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_x);
+  position.at.E[Sloth_Axis_Y].E[y_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_y);
   desc.layout.position = position;
   desc.input.flags |= Sloth_WidgetInput_Draggable;
   
@@ -4899,8 +4864,8 @@ sloth_cmp_slider_v(Sloth_Ctx* sloth,
     result.widget_result.widget->style.draw_flags = Sloth_Draw_None;
     
     Sloth_Layout_Position drag_position = desc.layout.position;
-    drag_position.at.E[Sloth_Axis_X].E[x_root] = sloth_size_percent_parent(pct_x1);
-    drag_position.at.E[Sloth_Axis_Y].E[y_root] = sloth_size_percent_parent(pct_y1);
+    drag_position.at.E[Sloth_Axis_X].E[x_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_x1);
+    drag_position.at.E[Sloth_Axis_Y].E[y_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_y1);
     
     Sloth_Widget_Desc drag_desc = desc;
     drag_desc.layout.position = drag_position;
@@ -4920,8 +4885,8 @@ sloth_cmp_slider_v(Sloth_Ctx* sloth,
     sloth_persistent_value_set(sloth, idr.id, Sloth_V2, &new_value);
     
     // Update the handle so it doesn't jump
-    position.at.E[Sloth_Axis_X].E[x_root] = sloth_size_percent_parent(pct_x1);
-    position.at.E[Sloth_Axis_Y].E[y_root] = sloth_size_percent_parent(pct_y1);
+    position.at.E[Sloth_Axis_X].E[x_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_x1);
+    position.at.E[Sloth_Axis_Y].E[y_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_y1);
     result.widget_result.widget->layout.position = position;
   }
   
@@ -5036,8 +5001,8 @@ sloth_cmp_scrollbar_axis_v(Sloth_Ctx* sloth,
   Sloth_Slider_Result result;
   
   Sloth_U8 other_axis = sloth_other_axis(axis);
-  desc.layout.size[axis] = sloth_size_percent_parent(1);
-  desc.layout.size[other_axis] = sloth_size_pixels(8);
+  desc.layout.size[axis] = SLOTH_SIZE_PERCENT_OF_PARENT(1);
+  desc.layout.size[other_axis] = SLOTH_SIZE_PIXELS(8);
   desc.input.flags = Sloth_WidgetInput_DoNotCaptureMouse;
   
   Sloth_Widget_Result bg = sloth_push_widget_v(
@@ -5045,8 +5010,8 @@ sloth_cmp_scrollbar_axis_v(Sloth_Ctx* sloth,
   );
   {
     Sloth_Widget_Desc handle_desc; sloth_zero_struct_(&handle_desc);
-    handle_desc.layout.width         = sloth_size_pixels(8);
-    handle_desc.layout.height        = sloth_size_pixels(8);
+    handle_desc.layout.width         = SLOTH_SIZE_PIXELS(8);
+    handle_desc.layout.height        = SLOTH_SIZE_PIXELS(8);
     handle_desc.layout.position.kind = Sloth_LayoutPosition_FixedInParent;
     handle_desc.style.color_bg       = (0xFFFFFFFF - desc.style.color_bg) | 0x000000FF;
     result = sloth_cmp_slider_single_axis_f(sloth, axis, 0, 1, value, axis_root, handle_desc, 
@@ -5098,14 +5063,14 @@ sloth_cmp_push_scroll_area_f(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt
   
   Sloth_Widget_Desc y_scroll_area_desc; sloth_zero_struct_(&y_scroll_area_desc);
   y_scroll_area_desc.style.color_bg = 0x550000FF;
-  y_scroll_area_desc.layout.width = sloth_size_percent_parent(1);
-  y_scroll_area_desc.layout.height = sloth_size_percent_parent(1);
+  y_scroll_area_desc.layout.width = SLOTH_SIZE_PERCENT_OF_PARENT(1);
+  y_scroll_area_desc.layout.height = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   y_scroll_area_desc.input.flags = Sloth_WidgetInput_DoNotCaptureMouse;
   Sloth_Widget_Result y_scroll_area = sloth_push_widget_f(sloth, y_scroll_area_desc, "###y_scroll_area_%d", id.value);
   
   Sloth_Widget_Desc content_container_desc; sloth_zero_struct_(&content_container_desc);
-  content_container_desc.layout.width = sloth_size_percent_parent(1);
-  content_container_desc.layout.height = sloth_size_percent_parent(1);
+  content_container_desc.layout.width = SLOTH_SIZE_PERCENT_OF_PARENT(1);
+  content_container_desc.layout.height = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   content_container_desc.input.flags = Sloth_WidgetInput_DoNotCaptureMouse;
   Sloth_Widget_Result content_container = sloth_push_widget_f(sloth, content_container_desc, "###content_container_%d", id.value);
   Sloth_Widget_Cached* cached = sloth_get_cached_data_for_id(sloth, content_container.widget->id);
@@ -5128,8 +5093,8 @@ sloth_cmp_pop_scroll_area(Sloth_Ctx* sloth, Sloth_Widget_Result* result)
   
   // Y Scrollbar
   Sloth_Widget_Desc y_scrollbar_desc = base_scrollbar_desc;  
-  y_scrollbar_desc.layout.position.right = sloth_size_pixels(0);
-  y_scrollbar_desc.layout.position.top   = sloth_size_pixels(0);
+  y_scrollbar_desc.layout.position.right = SLOTH_SIZE_PIXELS(0);
+  y_scrollbar_desc.layout.position.top   = SLOTH_SIZE_PIXELS(0);
   Sloth_Slider_Result ry = sloth_cmp_scrollbar_y_f(sloth, -cached->child_offset.y, 0, y_scrollbar_desc, "###y_scrollbar_handle_%d", id.value);
   cached->child_offset.y = -ry.value.y;
   
@@ -5137,8 +5102,8 @@ sloth_cmp_pop_scroll_area(Sloth_Ctx* sloth, Sloth_Widget_Result* result)
   
   // X Scrollbar
   Sloth_Widget_Desc x_scrollbar_desc = base_scrollbar_desc;  
-  x_scrollbar_desc.layout.position.left   = sloth_size_pixels(0);
-  x_scrollbar_desc.layout.position.bottom = sloth_size_pixels(0);
+  x_scrollbar_desc.layout.position.left   = SLOTH_SIZE_PIXELS(0);
+  x_scrollbar_desc.layout.position.bottom = SLOTH_SIZE_PIXELS(0);
   Sloth_Slider_Result rx = sloth_cmp_scrollbar_x_f(sloth, cached->child_offset.x, 0, x_scrollbar_desc, "###x_scrollbar_%d", id.value);
   cached->child_offset.x = -rx.value.x;
   
@@ -5472,7 +5437,44 @@ sloth_renderer_sokol_atlas_updated(Sloth_Ctx* sloth, Sloth_U32 atlas_index)
 }
 
 Sloth_Function void
-sloth_render_sokol_init(Sloth_Ctx* sloth)
+sloth_sokol_frame_prepare(Sloth_Ctx* sloth, Sloth_Frame_Desc* fd)
+{
+  fd->screen_dim = (Sloth_V2){
+    .x = sapp_widthf(),
+    .y = sapp_heightf(),
+  };
+  fd->high_dpi = sapp_high_dpi();
+  fd->dpi_scale = sapp_dpi_scale();
+  sloth_frame_prepare(sloth, *fd);
+}
+
+Sloth_Function void
+sloth_sokol_event(Sloth_Frame_Desc* fd, const sapp_event* event)
+{
+  switch (event->type)
+  {
+    case SAPP_EVENTTYPE_MOUSE_MOVE:
+    {
+      fd->mouse_pos.x = event->mouse_x;
+      fd->mouse_pos.y = event->mouse_y;
+    } break;
+    
+    case SAPP_EVENTTYPE_MOUSE_DOWN:
+    {
+      fd->mouse_button_l |= Sloth_MouseState_IsDown;
+    } break;
+    
+    case SAPP_EVENTTYPE_MOUSE_UP:
+    {
+      fd->mouse_button_l = Sloth_MouseState_WasDown;
+    } break;
+    
+    default: {} break;
+  }
+}
+
+Sloth_Function void
+sloth_sokol_init(Sloth_Ctx* sloth)
 {
   SLOTH_PROFILE_BEGIN;
   sloth->render_data = sloth_realloc(sloth->render_data, 0, sizeof(Sloth_Sokol_Data));
@@ -5600,7 +5602,6 @@ sloth_render_sokol(Sloth_Ctx* sloth, Sloth_U32 pass_index)
 
 #endif // SLOTH_SOKOL_RENDERER
 #endif // SLOTH_IMPLEMENTATION
-#endif // SLOTH_H
 
 /*
 Copyright 2022 Peter Slattery

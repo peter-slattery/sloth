@@ -936,10 +936,10 @@ struct Sloth_Ctx
 // will be returned as a display string;
 // If ### appears in the input string, the id will be constructed
 // only of everything after the ###.
-Sloth_Function Sloth_ID_Result sloth_make_id_v(Sloth_Char* fmt, va_list args);
-Sloth_Function Sloth_ID_Result sloth_make_id_f(Sloth_Char* fmt, ...);
-Sloth_Function Sloth_ID_Result sloth_make_id_len(Sloth_U32 len, Sloth_Char* str);
-Sloth_Function Sloth_ID_Result sloth_make_id(Sloth_Char* str);
+Sloth_Function Sloth_ID_Result sloth_make_id_v(Sloth_Arena* arena, Sloth_Char* fmt, va_list args);
+Sloth_Function Sloth_ID_Result sloth_make_id_f(Sloth_Arena* arena, Sloth_Char* fmt, ...);
+Sloth_Function Sloth_ID_Result sloth_make_id_len(Sloth_Arena* arena, Sloth_U32 len, Sloth_Char* str);
+Sloth_Function Sloth_ID_Result sloth_make_id(Sloth_Arena* scratch, Sloth_Char* str);
 Sloth_Function Sloth_Bool      sloth_ids_equal(Sloth_ID a, Sloth_ID b);
 
 // Sloth Vector and Rect
@@ -1222,11 +1222,6 @@ sloth_array_grow_(Sloth_U8* base, Sloth_U32 len, Sloth_U32* cap, Sloth_U32 min_c
   return new_base;
 }
 
-
-// Temporary string memory
-// TODO: Store this in the Sloth_Ctx rather than as a global
-static Sloth_U8 sloth_temp_string_memory[Sloth_Temp_String_Memory_Size];
-
 #define Sloth_Max(a,b) ((a) > (b) ? (a) : (b))
 #define Sloth_Min(a,b) ((a) < (b) ? (a) : (b))
 #define Sloth_Clamp(lower, v, higher) Sloth_Max(lower, Sloth_Min(higher, v))
@@ -1289,13 +1284,12 @@ sloth_round_to_pow2_u32(Sloth_U32 v)
 }
 
 Sloth_Function Sloth_ID_Result 
-sloth_make_id_v(Sloth_Char* fmt, va_list args)
+sloth_make_id_v(Sloth_Arena* arena, Sloth_Char* fmt, va_list args)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_U32 len = (Sloth_U32)sloth_vsnprintf((char*)sloth_temp_string_memory, 
-    Sloth_Temp_String_Memory_Size,
-    (char*)fmt,
-    args);
+  Sloth_U32 temp_str_cap = Sloth_Temp_String_Memory_Size;
+  Sloth_Char* temp_str = sloth_arena_push_array(arena, Sloth_Char, temp_str_cap);
+  Sloth_U32 len = (Sloth_U32)sloth_vsnprintf(temp_str, temp_str_cap, (char*)fmt, args);
   
   // Break up formatted string into its parts
   // (what to display, what to discard)
@@ -1303,10 +1297,10 @@ sloth_make_id_v(Sloth_Char* fmt, va_list args)
   Sloth_U32 display_before = len;
   for (Sloth_U32 i = 0; i < len; i++) 
   {
-    if (sloth_temp_string_memory[i] == '#') {
-      if (i + 1 < len && sloth_temp_string_memory[i + 1] == '#')
+    if (temp_str[i] == '#') {
+      if (i + 1 < len && temp_str[i + 1] == '#')
       {
-        if (i + 2 < len && sloth_temp_string_memory[i + 2] == '#' && (i + 3) > discard_to)
+        if (i + 2 < len && temp_str[i + 2] == '#' && (i + 3) > discard_to)
         {
           discard_to = i + 3;
           display_before = i;
@@ -1325,40 +1319,40 @@ sloth_make_id_v(Sloth_Char* fmt, va_list args)
   Sloth_U32 hash = 5381;
   for (Sloth_U32 i = discard_to; i < len; i++)
   {
-    hash = ((hash << 5) + hash) + (Sloth_U8)sloth_temp_string_memory[i];
+    hash = ((hash << 5) + hash) + (Sloth_U8)temp_str[i];
   }
   
   Sloth_ID_Result result;
   result.id.value = hash;
   result.display_len = display_before;
-  result.formatted = (Sloth_Char*)&sloth_temp_string_memory[0];
+  result.formatted = (Sloth_Char*)&temp_str[0];
   return result;
 }
 
 Sloth_Function Sloth_ID_Result 
-sloth_make_id_f(Sloth_Char* fmt, ...)
+sloth_make_id_f(Sloth_Arena* arena, Sloth_Char* fmt, ...)
 {
   SLOTH_PROFILE_BEGIN;
   va_list args;
   va_start(args, fmt);
-  Sloth_ID_Result result = sloth_make_id_v(fmt, args);
+  Sloth_ID_Result result = sloth_make_id_v(arena, fmt, args);
   va_end(args);
   return result;
 }
 
 Sloth_Function Sloth_ID_Result 
-sloth_make_id_len(Sloth_U32 len, Sloth_Char* str)
+sloth_make_id_len(Sloth_Arena* arena, Sloth_U32 len, Sloth_Char* str)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_ID_Result result = sloth_make_id_f((char*)"%.*s", len, str);
+  Sloth_ID_Result result = sloth_make_id_f(arena, (char*)"%.*s", len, str);
   return result;
 }
 
 Sloth_Function Sloth_ID_Result 
-sloth_make_id(Sloth_Char* str)
+sloth_make_id(Sloth_Arena* arena, Sloth_Char* str)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_ID_Result result = sloth_make_id_f((char*)"%s", str);
+  Sloth_ID_Result result = sloth_make_id_f(arena, (char*)"%s", str);
   return result;
 }
 
@@ -2969,7 +2963,7 @@ Sloth_Function Sloth_Widget_Result
 sloth_push_widget_v(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt, va_list args)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_ID_Result idr = sloth_make_id_v(fmt, args);
+  Sloth_ID_Result idr = sloth_make_id_v(&sloth->scratch, fmt, args);
   Sloth_Widget_Result result = sloth_push_widget_id(sloth, desc, idr.id);
   sloth_widget_allocate_text(sloth, result, idr.display_len);
   sloth_widget_text_to_glyphs_append(sloth, result, result.widget->style.font, idr.formatted, idr.display_len);
@@ -4857,7 +4851,7 @@ sloth_cmp_slider_v(Sloth_Ctx* sloth,
   char* fmt, va_list args)
 {
   // Slider ID
-  Sloth_ID_Result idr = sloth_make_id_v(fmt, args);
+  Sloth_ID_Result idr = sloth_make_id_v(&sloth->scratch, fmt, args);
   
   // @: Get the appropriate value if it exists, using value otherwise  
   Sloth_V2* value_cached = sloth_persistent_value_get(sloth, idr.id, Sloth_V2, &value);

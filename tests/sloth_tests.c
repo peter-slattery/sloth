@@ -368,21 +368,25 @@ UTEST(widget, cache_pool)
 
 UTEST(widget, id)
 {
+  Sloth_Arena arena = {};
+  
   // ID Creation Tests
   char test_id_str[]   = "Test id##53";
   int  test_id_str_len = (sizeof(test_id_str) / sizeof(char)) - 1;
   
-  Sloth_ID_Result id0 = sloth_make_id(test_id_str);
+  Sloth_ID_Result id0 = sloth_make_id(&arena, test_id_str);
   EXPECT_NE(id0.id.value, 0);
   EXPECT_EQ(id0.display_len, test_id_str_len - 4);
   
-  Sloth_ID_Result id1 = sloth_make_id_len(11, "Test id##53");
+  Sloth_ID_Result id1 = sloth_make_id_len(&arena, 11, "Test id##53");
   EXPECT_EQ(id0.id.value, id1.id.value);
   
-  Sloth_ID_Result id2 = sloth_make_id_f("Test id###%d", 53);
+  Sloth_ID_Result id2 = sloth_make_id_f(&arena, "Test id###%d", 53);
   EXPECT_NE(id2.id.value, 0);
   EXPECT_NE(id2.id.value, id0.id.value);
   EXPECT_EQ(id2.display_len, 7);
+  
+  sloth_arena_free(&arena);
 }
 
 UTEST(glyph, glyph_id)
@@ -484,25 +488,26 @@ UTEST(widget_tree, construction)
     .per_frame_memory.name = "pfm",
     .scratch.name = "scratch",
   };
+  Sloth_Arena* s = &sloth.scratch;
   
   Sloth_Widget_Desc d = {}; // these tests don't depend on the desc at all
   Sloth_ID ids0_preorder[] = {
-    sloth_make_id_f("Root").id, 
-    sloth_make_id_f("W1").id, 
-    sloth_make_id_f("W11").id, 
-    sloth_make_id_f("W12").id, 
-    sloth_make_id_f("W2").id, 
-    sloth_make_id_f("W3").id, 
-    sloth_make_id_f("W31").id
+    sloth_make_id_f(s, "Root").id, 
+    sloth_make_id_f(s, "W1").id, 
+    sloth_make_id_f(s, "W11").id, 
+    sloth_make_id_f(s, "W12").id, 
+    sloth_make_id_f(s, "W2").id, 
+    sloth_make_id_f(s, "W3").id, 
+    sloth_make_id_f(s, "W31").id
   };
   Sloth_ID ids0_postorder[] = {
-    sloth_make_id_f("W11").id,
-    sloth_make_id_f("W12").id,
-    sloth_make_id_f("W1").id,
-    sloth_make_id_f("W2").id,
-    sloth_make_id_f("W31").id,
-    sloth_make_id_f("W3").id,
-    sloth_make_id_f("Root").id,
+    sloth_make_id_f(s, "W11").id,
+    sloth_make_id_f(s, "W12").id,
+    sloth_make_id_f(s, "W1").id,
+    sloth_make_id_f(s, "W2").id,
+    sloth_make_id_f(s, "W31").id,
+    sloth_make_id_f(s, "W3").id,
+    sloth_make_id_f(s, "Root").id,
   };
   
   sloth_frame_prepare(&sloth, (Sloth_Frame_Desc){});
@@ -551,15 +556,15 @@ UTEST(widget_tree, construction)
   
   // Different frame from above
   Sloth_ID ids1[] = {
-    sloth_make_id_f("Root").id, 
-    sloth_make_id_f("W1").id, 
-    sloth_make_id_f("W11").id, 
-    sloth_make_id_f("W13").id, 
-    sloth_make_id_f("W14").id, 
-    sloth_make_id_f("W12").id, 
-    sloth_make_id_f("W2").id, 
-    sloth_make_id_f("W21").id, 
-    sloth_make_id_f("W3").id,
+    sloth_make_id_f(s, "Root").id, 
+    sloth_make_id_f(s, "W1").id, 
+    sloth_make_id_f(s, "W11").id, 
+    sloth_make_id_f(s, "W13").id, 
+    sloth_make_id_f(s, "W14").id, 
+    sloth_make_id_f(s, "W12").id, 
+    sloth_make_id_f(s, "W2").id, 
+    sloth_make_id_f(s, "W21").id, 
+    sloth_make_id_f(s, "W3").id,
   };
   sloth_push_widget(&sloth, d, "Root"); // root
   sloth_push_widget(&sloth, d, "W1"); 

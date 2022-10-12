@@ -1789,8 +1789,8 @@ sloth_arena_free(Sloth_Arena* arena)
   arena->curr_bucket_len = 0;
 }
 
-// TODO(PS): #ifdef this out if the user don't want to 
-// have sloth include C standard library functions
+#if !defined(SLOTH_NO_CSTD_LIBRARY)
+
 Sloth_Function Sloth_Font_ID 
 sloth_font_load(Sloth_Ctx* sloth, char* path, Sloth_R32 pixel_height)
 {
@@ -1815,6 +1815,8 @@ sloth_font_load(Sloth_Ctx* sloth, char* path, Sloth_R32 pixel_height)
   result = sloth_font_load_from_memory(sloth, path, path_len, file_data, file_size, pixel_height);
   return result;
 }
+
+#endif // !defined(SLOTH_NO_CSTD_LIBRARY)
 
 Sloth_Function Sloth_Font_ID 
 sloth_font_load_from_memory(Sloth_Ctx* sloth, char* font_name, Sloth_U32 font_name_len, Sloth_U8* data, Sloth_U32 data_size, Sloth_R32 pixel_height)
@@ -3541,9 +3543,11 @@ sloth_render_outline_ptc(Sloth_VIBuffer* vibuf, Sloth_Rect bounds, Sloth_R32 z, 
   // l         r
   // b b b b b b <<
   
-  // TODO(rjf): I'm not sure I want the outline to 
+  // TODO(ps): I'm not sure I want the outline to 
   // extend beyond the bounds requested. Better to have
   // it an inset outline
+  // TODO(PS): pretty sure it doesn't at the moment - dont have a good
+  // test ui to use yet
   Sloth_V2 top_min, top_max;
   top_min.x = bounds.value_min.x;
   top_min.y = bounds.value_min.y;
@@ -5366,20 +5370,27 @@ struct Sloth_Sokol_Texture
   Sloth_U32 dim;
 };
 
+typedef struct Sloth_Sokol_Pass Sloth_Sokol_Pass;
+struct Sloth_Sokol_Pass
+{
+  sg_bindings bind;
+  Sloth_U32 quad_cap;
+  Sloth_Sokol_Texture atlas_texture;
+};
+
 typedef struct Sloth_Sokol_Data Sloth_Sokol_Data;
 struct Sloth_Sokol_Data
 {
-  sg_bindings* pass_bindings;
-  Sloth_Sokol_Texture* atlas_textures;
-  Sloth_U32 atlas_textures_cap;
+  Sloth_Sokol_Pass* passes;
+  Sloth_U32 passes_cap;
   
   sg_pass_action pass_action;
   sg_pipeline pip;
   
-  Sloth_U32 bind_quad_cap;
+  Sloth_U32 bind_quad_cap_;
 };
 
-Sloth_Function void
+Sloth_Function Sloth_U32
 sloth_render_sokol_buffers_create(Sloth_Sokol_Data* sd, sg_bindings* pass_bind, Sloth_U32 quads)
 {
   if (pass_bind->vertex_buffers[0].id != 0) 
@@ -5407,9 +5418,7 @@ sloth_render_sokol_buffers_create(Sloth_Sokol_Data* sd, sg_bindings* pass_bind, 
   pass_bind->vertex_buffers[0] = sg_make_buffer(&vbd);
   pass_bind->index_buffer = sg_make_buffer(&ibd);
   
-  // TODO(PS): this needs to be per sg_bindings
-  // maybe just modify sg_bindings? Or wrap it in a Sloth_Sokol_Bindings
-  sd->bind_quad_cap = quads;
+  return quads;
 }
 
 Sloth_Function void
@@ -5419,25 +5428,18 @@ sloth_renderer_sokol_atlas_updated(Sloth_Ctx* sloth, Sloth_U32 atlas_index)
   sloth_assert(sd != 0);
   
   // Resize texture array if needed
-  if (atlas_index >= sd->atlas_textures_cap)
-  {
-    Sloth_U32 new_cap = sd->atlas_textures_cap * 2;
-    if (new_cap == 0) new_cap = SLOTH_GLYPH_ATLASES_MIN_CAP;
-    
-    Sloth_U32 old_size = sizeof(sg_bindings) * sd->atlas_textures_cap;
-    Sloth_U32 new_size = sizeof(sg_bindings) * new_cap;
-    sd->pass_bindings = (sg_bindings*)sloth_realloc(sd->pass_bindings, old_size, new_size);
-    for (Sloth_U32 i = sd->atlas_textures_cap; i < new_cap; i++) {
-      sloth_zero_struct_(&sd->pass_bindings[i]);
-      sloth_render_sokol_buffers_create(sd, sd->pass_bindings + i, 1024);
-    }
-    sd->atlas_textures_cap = new_cap;
+  Sloth_U32 passes_before = sd->passes_cap;
+  sd->passes = sloth_array_grow(sd->passes, atlas_index, &sd->passes_cap, SLOTH_GLYPH_ATLASES_MIN_CAP, Sloth_Sokol_Pass);
+  for (Sloth_U32 i = passes_before; i < sd->passes_cap; i++) {
+    sloth_zero_struct_(&sd->passes[i]);
+    sloth_render_sokol_buffers_create(sd, &sd->passes[i].bind, 1024);
   }
   
   Sloth_Glyph_Store store = sloth->glyph_store;
   Sloth_Glyph_Atlas* atlas = sloth->glyph_atlases + atlas_index;
   Sloth_U32 atlas_dim = atlas->dim;
-  sg_bindings* pass_bind = sd->pass_bindings + atlas_index;
+  Sloth_Sokol_Pass* pass = sd->passes + atlas_index;
+  sg_bindings* pass_bind = &pass->bind;
   
   // Grow the existing texture if needed
   if (pass_bind->fs_images[SLOT_tex].id == 0 || atlas->dirty_state == Sloth_GlyphAtlas_Dirty_Grow) 
@@ -5523,7 +5525,8 @@ sloth_render_sokol_(Sloth_Ctx* sloth, Sloth_U32 pass_index, Sloth_U32 width, Slo
   Sloth_VIBuffer* vibuf = sloth->vibuffers + pass_index;
   if (vibuf->verts_len == 0 || vibuf->indices_len == 0) return;
   
-  sg_bindings* pass_bind = sd->pass_bindings + pass_index;
+  Sloth_Sokol_Pass* pass = sd->passes + pass_index;
+  sg_bindings* pass_bind = &pass->bind;
   
   // TODO(PS): probably make this togglable at runtime?
 #define DRAW_ATLAS_OVER_ALL 0
@@ -5541,10 +5544,10 @@ sloth_render_sokol_(Sloth_Ctx* sloth, Sloth_U32 pass_index, Sloth_U32 width, Slo
 #endif
   
   // Update the bindings
-  if (vibuf->verts_len > sd->bind_quad_cap * 4) {
-    Sloth_U32 new_cap = sd->bind_quad_cap * 2;
+  if (vibuf->verts_len > pass->quad_cap * 4) {
+    Sloth_U32 new_cap = pass->quad_cap * 2;
     while (new_cap * 4 < vibuf->verts_len) new_cap *= 2;
-    sloth_render_sokol_buffers_create(sd, pass_bind, new_cap);
+    pass->quad_cap = sloth_render_sokol_buffers_create(sd, pass_bind, new_cap);
   }
   
   // TODO: Check if we are about to push a range bigger than the 

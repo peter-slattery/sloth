@@ -1,5 +1,6 @@
 // Leaving the interface here, and including the implementation at the end
 // to test doing the single file include trick
+#define SLOTH_NO_CSTD_LIBRARY
 #include "../src/sloth.h"
 #include "sloth_tests_utils.h"
 

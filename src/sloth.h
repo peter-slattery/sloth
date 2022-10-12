@@ -1176,6 +1176,13 @@ sloth_realloc_wrapper(Sloth_U8* base, Sloth_U32 old_size, Sloth_U32 new_size)
 #  endif
 #endif
 
+// Creates a universal way to zero a struct across C and CPP
+#if defined(__cplusplus)
+#  define SLOTH_ZII {}
+#else
+#  define SLOTH_ZII {0}
+#endif
+
 Sloth_Function Sloth_U32
 sloth_snprintf(char* dst, Sloth_U32 dst_len, char* fmt, ...)
 {
@@ -1786,7 +1793,7 @@ Sloth_Function Sloth_Font_ID
 sloth_font_load(Sloth_Ctx* sloth, char* path, Sloth_R32 pixel_height)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_Font_ID result; sloth_zero_struct_(&result);
+  Sloth_Font_ID result = SLOTH_ZII;
   
   FILE* file = fopen(path, "rb");
   if (!file) return result;
@@ -1853,8 +1860,7 @@ Sloth_Function Sloth_Glyph_ID
 sloth_font_register_codepoint(Sloth_Ctx* sloth, Sloth_Font_ID font_id, Sloth_U32 codepoint)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_Glyph_ID result;
-  sloth_zero_struct_(&result);
+  Sloth_Glyph_ID result = SLOTH_ZII;
   if (sloth->font_renderer_register_glyph) {
     sloth->font_renderer_register_glyph(sloth, font_id, codepoint);
   }
@@ -1886,7 +1892,7 @@ Sloth_Function Sloth_Font_Metrics
 sloth_font_get_metrics(Sloth_Ctx* sloth, Sloth_Font_ID id)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_Font_Metrics result; sloth_zero_struct_(&result);
+  Sloth_Font_Metrics result = SLOTH_ZII;
   Sloth_Font* font = sloth_font_get_(sloth, id);
   if (!font) return result;
   return font->metrics;
@@ -2260,8 +2266,7 @@ Sloth_Function Sloth_Glyph_Info
 sloth_lookup_glyph(Sloth_Ctx* sloth, Sloth_Glyph_ID id)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_Glyph_Info result;
-  sloth_zero_struct_(&result);
+  Sloth_Glyph_Info result = SLOTH_ZII;
   
   Sloth_Glyph_Store* store = &sloth->glyph_store;
   Sloth_Glyph* glyph = (Sloth_Glyph*)sloth_hashtable_get(&store->glyphs_table, id.value);
@@ -2840,7 +2845,7 @@ Sloth_Function Sloth_Widget_Result
 sloth_widget_handle_input(Sloth_Ctx* sloth, Sloth_Widget* widget)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_Widget_Result result; sloth_zero_struct_(&result);
+  Sloth_Widget_Result result = SLOTH_ZII;
   result.widget = widget;
   
   Sloth_Widget_Input input = widget->input;
@@ -3255,8 +3260,7 @@ Sloth_Function Sloth_V2
 sloth_layout_get_child_relevant_extents(Sloth_Widget* parent, Sloth_Rect widget_bounds)
 {
   SLOTH_PROFILE_BEGIN;
-  Sloth_V2 relevant_extents;
-  sloth_zero_struct_(&relevant_extents);
+  Sloth_V2 relevant_extents = SLOTH_ZII;
   switch (parent->layout.direction)
   {
     case Sloth_LayoutDirection_TopDown:
@@ -3753,7 +3757,7 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
 {
   SLOTH_PROFILE_BEGIN;
   
-  Sloth_V2 text_dim; sloth_zero_struct_(&text_dim);
+  Sloth_V2 text_dim = SLOTH_ZII;
   
   Sloth_U32 last_line_break = 0;
   Sloth_Glyph_Layout* text = widget->text;
@@ -3876,7 +3880,7 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
     sloth_render_text_apply_align_right(widget, widget->text, widget->text_len, text_bounds);
   }
   
-  Sloth_V2 text_max; sloth_zero_struct_(&text_max);
+  Sloth_V2 text_max = SLOTH_ZII;
   for (Sloth_U32 glyph_i = 0; glyph_i < widget->text_len; glyph_i++)
   {
     text_max.x = Sloth_Max(text_max.x, text[glyph_i].bounds.value_max.x);
@@ -3907,8 +3911,7 @@ sloth_size_kind_text_contents_layout_text(Sloth_Ctx* sloth, Sloth_Widget* widget
     }
   }
   
-  Sloth_Rect text_bounds;
-  sloth_zero_struct_(&text_bounds);
+  Sloth_Rect text_bounds = SLOTH_ZII;
   Sloth_Widget_Layout l = widget->layout;
   if (l.width.kind == Sloth_SizeKind_TextContent) 
   {
@@ -3950,7 +3953,7 @@ sloth_percent_parent_width_layout_text(Sloth_Ctx* sloth, Sloth_Widget* widget, S
   Sloth_R32 margin = sloth_size_evaluate_margin(widget, widget->layout.margin.left, Sloth_Axis_X);
   margin += sloth_size_evaluate_margin(widget, widget->layout.margin.right, Sloth_Axis_X);
   
-  Sloth_Rect text_bounds; sloth_zero_struct_(&text_bounds);
+  Sloth_Rect text_bounds = SLOTH_ZII;
   text_bounds.value_max.x = Sloth_Max(0, widget->cached->dim.x - margin);
   text_bounds.value_max.y = Sloth_R32_Max;
   widget->text_dim = sloth_layout_text_in_widget(sloth, widget, text_bounds);
@@ -3970,7 +3973,7 @@ sloth_child_sum_width_layout_text(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_
   Sloth_R32 margin = sloth_size_evaluate_margin(widget, widget->layout.margin.left, Sloth_Axis_X);
   margin += sloth_size_evaluate_margin(widget, widget->layout.margin.right, Sloth_Axis_X);
   
-  Sloth_Rect text_bounds; sloth_zero_struct_(&text_bounds);
+  Sloth_Rect text_bounds = SLOTH_ZII;
   text_bounds.value_max.x = Sloth_Max(0, widget->cached->dim.x - margin);
   text_bounds.value_max.y = Sloth_R32_Max;
   widget->text_dim = sloth_layout_text_in_widget(sloth, widget, text_bounds);
@@ -3993,7 +3996,7 @@ sloth_known_size_layout_text(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_U8* u
   Sloth_R32 margin_y = sloth_size_evaluate_margin(widget, widget->layout.margin.top, Sloth_Axis_Y);
   margin_y += sloth_size_evaluate_margin(widget, widget->layout.margin.bottom, Sloth_Axis_Y);
   
-  Sloth_Rect text_bounds; sloth_zero_struct_(&text_bounds);
+  Sloth_Rect text_bounds = SLOTH_ZII;
   text_bounds.value_max.x = Sloth_Max(0, widget->cached->dim.x - margin_x);
   text_bounds.value_max.y = Sloth_Max(0, widget->cached->dim.y - margin_y);
   
@@ -4162,7 +4165,7 @@ sloth_render_cb(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_U8* user_data)
   Sloth_Rect bounds = widget->cached->bounds;
   
   // White glyph id
-  Sloth_Glyph_ID white_id; sloth_zero_struct_(&white_id);
+  Sloth_Glyph_ID white_id = SLOTH_ZII;
   white_id.id[0] = 1;
   
   // Z Depths
@@ -4411,7 +4414,7 @@ sloth_frame_advance(Sloth_Ctx* sloth)
   
   // Pass: Widgets -> Vertex Buffers
   // Each vertex buffer is associated with a texture. 
-  Sloth_Render_Ctx rc; sloth_zero_struct_(&rc);
+  Sloth_Render_Ctx rc = SLOTH_ZII;
   Sloth_R32 z_depth = sloth->z_depth_min - sloth->z_depth_max;
   Sloth_R32 z_step_dir = z_depth >= 0 ? 1 : -1; // sign(z_depth)
   rc.z_step = z_depth / (Sloth_R32)(sloth->widgets.len * Sloth_ZOff_Next);
@@ -4599,7 +4602,7 @@ sloth_ctx_init(Sloth_Ctx* sloth)
     Sloth_U32 p[16];
     for (Sloth_U32 i = 0; i < 16; i++) { p[i] = 0xFFFFFFFF; }
     
-    Sloth_Glyph_Desc gd; sloth_zero_struct_(&gd);
+    Sloth_Glyph_Desc gd = SLOTH_ZII;
     gd.family = 0;
     gd.id = 1;
     gd.format = Sloth_GlyphData_RGBA8;
@@ -4638,7 +4641,7 @@ sloth_grid_desc_get_cell(Sloth_Grid_Desc grid, Sloth_U32 col, Sloth_U32 row)
 {
   col = col % grid.cols_count;
   row = row % grid.rows_count;
-  Sloth_Widget_Desc result; sloth_zero_struct_(&result);
+  Sloth_Widget_Desc result = SLOTH_ZII;
   result.layout.width = grid.cols[col];
   result.layout.height = grid.rows[row];
   result.layout.margin.right = grid.col_gap;
@@ -4662,7 +4665,7 @@ sloth_cmp_text_df(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt, ...)
 Sloth_Function Sloth_Widget_Result
 sloth_cmp_text_f(Sloth_Ctx* sloth, Sloth_Text_Style_Flags text_style, Sloth_U32 color_text, char* fmt, ...)
 {
-  Sloth_Widget_Desc desc; sloth_zero_struct_(&desc);
+  Sloth_Widget_Desc desc = SLOTH_ZII;
   desc.layout.width     = SLOTH_SIZE_TEXT_CONTENT;
   desc.layout.height    = SLOTH_SIZE_TEXT_CONTENT;
   desc.style.color_text = color_text;
@@ -4686,7 +4689,7 @@ sloth_cmp_space_axis(Sloth_Ctx* sloth, Sloth_Size size, Sloth_U32 on_axis)
 {
   Sloth_U32 off_axis = sloth_other_axis(on_axis);
   
-  Sloth_Widget_Desc desc; sloth_zero_struct_(&desc);
+  Sloth_Widget_Desc desc = SLOTH_ZII;
   desc.layout.size[on_axis]  = size;
   desc.layout.size[off_axis] = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   desc.input.flags = Sloth_WidgetInput_DoNotCaptureMouse;
@@ -4856,7 +4859,7 @@ sloth_cmp_slider_v(Sloth_Ctx* sloth,
   Sloth_R32 pct_y = range_y != 0 ? (result.value.y - range_min.y) / (range_max.y - range_min.y) : 0;
   
   // Modify the input description
-  Sloth_Layout_Position position; sloth_zero_struct_(&position);
+  Sloth_Layout_Position position = SLOTH_ZII;
   position.kind = Sloth_LayoutPosition_FixedInParent;
   position.at.E[Sloth_Axis_X].E[x_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_x);
   position.at.E[Sloth_Axis_Y].E[y_root] = SLOTH_SIZE_PERCENT_OF_PARENT(pct_y);
@@ -5043,7 +5046,7 @@ sloth_cmp_scrollbar_axis_v(Sloth_Ctx* sloth,
       sloth, desc, fmt, args
   );
   {
-    Sloth_Widget_Desc handle_desc; sloth_zero_struct_(&handle_desc);
+    Sloth_Widget_Desc handle_desc = SLOTH_ZII;
     handle_desc.layout.width         = SLOTH_SIZE_PIXELS(8);
     handle_desc.layout.height        = SLOTH_SIZE_PIXELS(8);
     handle_desc.layout.position.kind = Sloth_LayoutPosition_FixedInParent;
@@ -5095,14 +5098,14 @@ sloth_cmp_push_scroll_area_f(Sloth_Ctx* sloth, Sloth_Widget_Desc desc, char* fmt
   Sloth_ID id = result.widget->id;
   va_end(args);
   
-  Sloth_Widget_Desc y_scroll_area_desc; sloth_zero_struct_(&y_scroll_area_desc);
+  Sloth_Widget_Desc y_scroll_area_desc = SLOTH_ZII;
   y_scroll_area_desc.style.color_bg = 0x550000FF;
   y_scroll_area_desc.layout.width = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   y_scroll_area_desc.layout.height = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   y_scroll_area_desc.input.flags = Sloth_WidgetInput_DoNotCaptureMouse;
   Sloth_Widget_Result y_scroll_area = sloth_push_widget_f(sloth, y_scroll_area_desc, "###y_scroll_area_%d", id.value);
   
-  Sloth_Widget_Desc content_container_desc; sloth_zero_struct_(&content_container_desc);
+  Sloth_Widget_Desc content_container_desc = SLOTH_ZII;
   content_container_desc.layout.width = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   content_container_desc.layout.height = SLOTH_SIZE_PERCENT_OF_PARENT(1);
   content_container_desc.input.flags = Sloth_WidgetInput_DoNotCaptureMouse;
@@ -5121,7 +5124,7 @@ sloth_cmp_pop_scroll_area(Sloth_Ctx* sloth, Sloth_Widget_Result* result)
   Sloth_Widget_Cached* cached = sloth_get_cached_data_for_id(sloth, content_container_id);
   sloth_pop_widget(sloth); // content container
   
-  Sloth_Widget_Desc base_scrollbar_desc; sloth_zero_struct_(&base_scrollbar_desc);
+  Sloth_Widget_Desc base_scrollbar_desc = SLOTH_ZII;
   base_scrollbar_desc.style.color_bg = 0x000000FF;
   base_scrollbar_desc.layout.position.kind = Sloth_LayoutPosition_FixedInParent;
   
@@ -5183,8 +5186,7 @@ sloth_stbtt_register_glyph(Sloth_Ctx* sloth, Sloth_Font_ID font_id, Sloth_U32 co
   Sloth_Font* font = sloth_font_get_(sloth, font_id);
   Sloth_Stbtt_Font* stb_font = (Sloth_Stbtt_Font*)font->renderer_data;
   
-  Sloth_Glyph_Desc gd;
-  sloth_zero_struct_(&gd);
+  Sloth_Glyph_Desc gd = SLOTH_ZII;
   gd.family = font->weights[font_id.weight_index].glyph_family;
   gd.id = codepoint;
   gd.format = Sloth_GlyphData_Alpha8;
@@ -5312,8 +5314,7 @@ sloth_ft2_register_glyph(Sloth_Ctx* sloth, Sloth_Font_ID font_id, Sloth_U32 code
   }
   
   FT_GlyphSlot slot = ft_font->ft_face->glyph;
-  Sloth_Glyph_Desc gd;
-  sloth_zero_struct_(&gd);
+  Sloth_Glyph_Desc gd = SLOTH_ZII;
   gd.family = font->weights[font_id.weight_index].glyph_family;
   gd.id = codepoint;
   gd.format = Sloth_GlyphData_Alpha8;
@@ -5385,12 +5386,12 @@ sloth_render_sokol_buffers_create(Sloth_Sokol_Data* sd, sg_bindings* pass_bind, 
     pass_bind->index_buffer.id = 0;
   }
   
-  sg_buffer_desc vbd; sloth_zero_struct_(&vbd);
+  sg_buffer_desc vbd = SLOTH_ZII;
   vbd.usage = SG_USAGE_STREAM;
   vbd.data.size = quads * 4 * sizeof(Sloth_R32);
   vbd.label = "sloth sokol vertices";
   
-  sg_buffer_desc ibd; sloth_zero_struct_(&ibd);
+  sg_buffer_desc ibd = SLOTH_ZII;
   ibd.usage = SG_USAGE_STREAM;
   ibd.type = SG_BUFFERTYPE_INDEXBUFFER;
   ibd.data.size = quads * 6 * sizeof(Sloth_U32);
@@ -5565,7 +5566,7 @@ sloth_render_sokol_(Sloth_Ctx* sloth, Sloth_U32 pass_index, Sloth_U32 width, Slo
     Sloth_R32 top = 0;
     Sloth_R32 near = -sloth->z_depth_min;
     Sloth_R32 far = -sloth->z_depth_max;
-    sloth_viz_vs_params_t sloth_viz_vs_params2; sloth_zero_struct_(&sloth_viz_vs_params2);
+    sloth_viz_vs_params_t sloth_viz_vs_params2 = SLOTH_ZII;
     sloth_viz_vs_params2.mvp[0][0] = 2.0f / (right - left);
     sloth_viz_vs_params2.mvp[1][1] = 2.0f / (top - bottom);
     sloth_viz_vs_params2.mvp[2][2] = 2.0f / (near - far);
@@ -5601,8 +5602,7 @@ sloth_sokol_init(Sloth_Ctx* sloth)
   Sloth_Sokol_Data* sd = (Sloth_Sokol_Data*)sloth->render_data;
   sloth_zero_struct_(sd);
   
-  sg_pass_action pass_action;
-  sloth_zero_struct_(&pass_action);
+  sg_pass_action pass_action = SLOTH_ZII;
   pass_action.colors[0].action = SG_ACTION_CLEAR;
   pass_action.colors[0].value.r = 0;
   pass_action.colors[0].value.g = 0;
@@ -5610,8 +5610,7 @@ sloth_sokol_init(Sloth_Ctx* sloth)
   pass_action.colors[0].value.a = 1;
   sd->pass_action = pass_action;
   
-  sg_pipeline_desc pd;
-  sloth_zero_struct_(&pd);
+  sg_pipeline_desc pd = SLOTH_ZII;
   pd.shader = sg_make_shader(sloth_viz_shader_desc(sg_query_backend()));
   pd.index_type = SG_INDEXTYPE_UINT32;
   pd.layout.attrs[ATTR_sloth_viz_vs_position].format = SG_VERTEXFORMAT_FLOAT3;

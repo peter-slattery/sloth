@@ -701,6 +701,15 @@ struct Sloth_Widget_Desc
   Sloth_Widget_Input  input;
 };
 
+typedef Sloth_U8 Sloth_Glyph_Layout_Flags;
+enum 
+{
+  Sloth_GlyphLayout_Default     = 0,
+  Sloth_GlyphLayout_Draw        = 1,
+  Sloth_GlyphLayout_IsLineStart = 2,
+  Sloth_GlyphLayout_Selected    = 4,
+};
+
 typedef struct Sloth_Glyph_Layout Sloth_Glyph_Layout;
 struct Sloth_Glyph_Layout
 {
@@ -708,12 +717,7 @@ struct Sloth_Glyph_Layout
   Sloth_Glyph_Info info;
   Sloth_Rect bounds;
   Sloth_U32 color;
-  
-  // TODO: Hanging bytes, could be much better used space
-  // will take care of later
-  Sloth_U8 draw; 
-  Sloth_U8 is_line_start;
-  Sloth_U8 selected;
+  Sloth_Glyph_Layout_Flags flags;
 };
 
 typedef struct Sloth_Widget_Cached Sloth_Widget_Cached;
@@ -1128,6 +1132,11 @@ Sloth_Function void sloth_frame_render(Sloth_Ctx* sloth);
 //////// IMPLEMENTATION  ////////
 #ifdef SLOTH_IMPLEMENTATION
 
+#define sloth_flags_add(f,v) (f) |= (v)
+#define sloth_flags_rem(f,v) (f) &= ~(v)
+#define sloth_flags_has(f,v) (((f) & (v)) != 0)
+#define sloth_flags_has_only(f,v) ((f) == (v))
+
 #ifndef sloth_realloc
 
 Sloth_Function Sloth_U8*
@@ -1254,7 +1263,6 @@ sloth_remap_v2(Sloth_V2 v, Sloth_V2 old_min, Sloth_V2 old_max, Sloth_V2 new_min,
   return result;
 }
 
-#define sloth_has_flag(value, flag) (((value) & (flag)) != 0)
 #define sloth_floor_r32(v) (Sloth_R32)((int)(v))
 
 #define sloth_copy_memory(dst, src, len) sloth_copy_memory_((Sloth_U8*)(dst), (Sloth_U8*)(src), (len))
@@ -2829,7 +2837,7 @@ sloth_widget_validate_layout__(Sloth_Widget_Layout layout)
 Sloth_Function void
 sloth_widget_handle_input_drag(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Widget_Result* result)
 {  
-  if (!sloth_has_flag(widget->input.flags, Sloth_WidgetInput_Draggable)) return;
+  if (!sloth_flags_has(widget->input.flags, Sloth_WidgetInput_Draggable)) return;
   result->drag_offset_pixels.x = sloth->mouse_pos.x - sloth->mouse_down_pos.x;
   result->drag_offset_pixels.y = sloth->mouse_pos.y - sloth->mouse_down_pos.y;
   
@@ -2856,7 +2864,7 @@ sloth_widget_handle_input(Sloth_Ctx* sloth, Sloth_Widget* widget)
     result.held = sloth_mouse_button_held_down(sloth->mouse_button_l);  
     sloth_widget_handle_input_drag(sloth, widget, &result);
     
-    if (sloth_has_flag(input.flags, Sloth_WidgetInput_TextSelectable))
+    if (sloth_flags_has(input.flags, Sloth_WidgetInput_TextSelectable))
     {
       result.selected_glyphs_first = sloth->active_widget_selected_glyphs_first;
       result.selected_glyphs_one_past_last = sloth->active_widget_selected_glyphs_one_past_last;
@@ -2871,7 +2879,7 @@ sloth_widget_handle_input(Sloth_Ctx* sloth, Sloth_Widget* widget)
       sloth_widget_handle_input_drag(sloth, widget, &result);
     }
     
-    if (sloth_has_flag(input.flags, Sloth_WidgetInput_TextSelectable))
+    if (sloth_flags_has(input.flags, Sloth_WidgetInput_TextSelectable))
     {
       result.selected_glyphs_first = sloth->active_widget_selected_glyphs_first;
       result.selected_glyphs_one_past_last = sloth->active_widget_selected_glyphs_one_past_last;
@@ -2917,7 +2925,7 @@ sloth_widget_text_to_glyphs_append(Sloth_Ctx* sloth, Sloth_Widget_Result widget_
     text_family = sloth->fonts[font.value].weights[font.weight_index].glyph_family;
   }
   
-  Sloth_Bool show_selected = sloth_has_flag(widget->input.flags, Sloth_WidgetInput_TextSelectable);
+  Sloth_Bool show_selected = sloth_flags_has(widget->input.flags, Sloth_WidgetInput_TextSelectable);
   show_selected &= sloth_ids_equal(sloth->last_active_widget, widget->id);
   
   sloth_assert(widget->text_len + text_len <= widget->text_cap);
@@ -2931,7 +2939,9 @@ sloth_widget_text_to_glyphs_append(Sloth_Ctx* sloth, Sloth_Widget_Result widget_
     Sloth_Bool after_first = glyph_i >= widget_result.selected_glyphs_first;
     Sloth_Bool before_last = glyph_i < widget_result.selected_glyphs_one_past_last;
     Sloth_Bool is_selected = (show_selected && after_first && before_last);
-    widget->text[glyph_i].selected = is_selected;
+    if (is_selected) {
+      sloth_flags_add(widget->text[glyph_i].flags, Sloth_GlyphLayout_Selected);
+    }
     widget->text[glyph_i].glyph_id = g;
     
     if (!sloth_glyph_store_contains(&sloth->glyph_store, g))
@@ -3711,7 +3721,7 @@ sloth_render_text_apply_align_center(Sloth_Widget* widget, Sloth_Glyph_Layout* g
   Sloth_R32 last_line_start_x = glyphs[0].bounds.value_min.x;
   for (Sloth_U32 glyph_i = 1; glyph_i < glyphs_cap; glyph_i++)
   {
-    if (!glyphs[glyph_i].is_line_start) continue;
+    if (!sloth_flags_has(glyphs[glyph_i].flags, Sloth_GlyphLayout_IsLineStart)) continue;
     
     // process the line just completed
     Sloth_R32 last_line_end_x = glyphs[glyph_i - 1].bounds.value_max.x;
@@ -3737,7 +3747,7 @@ sloth_render_text_apply_align_right(Sloth_Widget* widget, Sloth_Glyph_Layout* gl
   Sloth_R32 last_line_start_x = glyphs[0].bounds.value_min.x;
   for (Sloth_U32 glyph_i = 1; glyph_i < glyphs_cap; glyph_i++)
   {
-    if (!glyphs[glyph_i].is_line_start) continue;
+    if (!sloth_flags_has(glyphs[glyph_i].flags, Sloth_GlyphLayout_IsLineStart)) continue;
     
     // process the line just completed
     Sloth_R32 last_line_end_x = glyphs[glyph_i - 1].bounds.value_max.x;
@@ -3782,7 +3792,7 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
       // will also offset to the first baseline
       if (glyph_i == 0) 
       {
-        text_at->is_line_start = true;      
+        sloth_flags_add(text_at->flags, Sloth_GlyphLayout_IsLineStart);
         active_font = sloth_glyph_to_font(sloth, text_at->glyph_id);
         if (active_font) {
           line_advance = active_font->metrics.line_height;
@@ -3821,7 +3831,7 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
         }
       }
       
-      if (!sloth_has_flag(widget->style.text_style, Sloth_TextStyle_NoWrapText))
+      if (!sloth_flags_has(widget->style.text_style, Sloth_TextStyle_NoWrapText))
       {
         at.x = 0;
         at.y += line_advance;
@@ -3835,7 +3845,7 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
           line_break = glyph_i;
         }
         
-        text[line_break].is_line_start = true;
+        sloth_flags_add(text[line_break].flags, Sloth_GlyphLayout_IsLineStart);
         if (text[line_break].glyph_id.family != text[last_line_break].glyph_id.family)
         {
           active_font = sloth_glyph_to_font(sloth, text_at->glyph_id);
@@ -3871,11 +3881,11 @@ sloth_layout_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
   // during the default layout step above 
   Sloth_Text_Style_Flags text_style = widget->style.text_style;
   // no action necessary for Align_Left
-  if (sloth_has_flag(text_style, Sloth_TextStyle_Align_Center))
+  if (sloth_flags_has(text_style, Sloth_TextStyle_Align_Center))
   {
     sloth_render_text_apply_align_center(widget, widget->text, widget->text_len, text_bounds);
   }
-  else if (sloth_has_flag(text_style, Sloth_TextStyle_Align_Right))
+  else if (sloth_flags_has(text_style, Sloth_TextStyle_Align_Right))
   {
     sloth_render_text_apply_align_right(widget, widget->text, widget->text_len, text_bounds);
   }
@@ -4044,7 +4054,10 @@ sloth_offset_and_clip_text(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_U8* use
     widget->text[i].bounds.value_max.y += offset.y;
     
     // clip
-    widget->text[i].draw = sloth_render_clip_glyph_layout(sloth, widget->text + i, widget->cached->bounds);
+    if (sloth_render_clip_glyph_layout(sloth, widget->text + i, widget->cached->bounds))
+    {
+      sloth_flags_add(widget->text[i].flags, Sloth_GlyphLayout_Draw);
+    }
   }
   
   return Sloth_TreeWalk_Continue;
@@ -4066,20 +4079,20 @@ sloth_render_text_in_widget(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_Rect t
   Sloth_VIBuffer* selection_vibuf = sloth->vibuffers + 0;
   for (Sloth_U32 i = 0; i < widget->text_len; i++)
   {
-    if (!widget->text[i].draw) continue;
+    Sloth_Glyph_Layout gl = widget->text[i];
+    if (!sloth_flags_has(gl.flags, Sloth_GlyphLayout_Draw)) continue;
     
     // Text Selection Rendering
-    Sloth_Glyph_Layout gl = widget->text[i];
     if (text_vibuf_family != gl.glyph_id.family || text_vibuf == 0)
     {
       text_vibuf = sloth_get_vibuffer_for_glyph(sloth, gl.glyph_id);
       text_vibuf_family = gl.glyph_id.family;
     }
     
-    if (gl.selected) 
+    if (sloth_flags_has(gl.flags, Sloth_GlyphLayout_Selected)) 
     {
       Sloth_Bool is_selection_start = selection_quad_v0;
-      Sloth_Bool is_selected_line_start = gl.is_line_start;
+      Sloth_Bool is_selected_line_start = sloth_flags_has(gl.flags, Sloth_GlyphLayout_IsLineStart);
       if (is_selection_start || is_selected_line_start) 
       {
         // if there's already a selection being processed, render that
@@ -4231,7 +4244,7 @@ sloth_render_cb(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_U8* user_data)
 Sloth_Function Sloth_Tree_Walk_Result
 sloth_find_hot_and_active(Sloth_Ctx* sloth, Sloth_Widget* widget, Sloth_U8* ud)
 {
-  if (sloth_has_flag(widget->input.flags, Sloth_WidgetInput_DoNotCaptureMouse)) return Sloth_TreeWalk_Continue;
+  if (sloth_flags_has(widget->input.flags, Sloth_WidgetInput_DoNotCaptureMouse)) return Sloth_TreeWalk_Continue;
   
   // Active
   if (sloth_mouse_button_is_down(sloth->mouse_button_l) &&
